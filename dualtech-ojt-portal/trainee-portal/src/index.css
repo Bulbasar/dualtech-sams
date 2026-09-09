@@ -1,0 +1,18 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+
+@layer base {
+  body {
+    @apply font-sans bg-slate-50 text-slate-900;
+  }
+}
+
+
+@layer base {
+  .dark input,
+  .dark textarea,
+  .dark select {
+    @apply text-white;
+  }
+}

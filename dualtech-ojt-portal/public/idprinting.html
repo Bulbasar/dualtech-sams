@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dualtech Student ID Printing & Registration App</title>
+        <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dualtech: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            400: '#60a5fa',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                            950: '#172554',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Montserrat', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        /* --- ID CARD TEMPLATE STYLES --- */
+        .id-card * {
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+        .id-card-container { display: flex; gap: 20px; justify-content: center; align-items: center; margin: 10px auto; transform-origin: top center; }
+        .id-card { width: 2.125in; height: 3.375in; position: relative; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); background-size: cover; background-position: center; background-repeat: no-repeat; overflow: hidden; font-family: 'Arial', sans-serif; background-color: #ffffff; box-sizing: border-box; border: 1px solid #ccc; }
+        
+        /* Updated Backgrounds */
+        .id-back {
+            position: relative;
+        }
+
+        /* Updated Background Image Class */
+        .card-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: fill !important; /* Forces image to stretch perfectly to the edges */
+            z-index: 0; 
+        }
+        
+        /* --- BACK DETAILS WITH LABELS --- */
+        .back-layout { 
+            position: absolute; 
+            top: 30%; /* Decreased from 45% to move the text roughly 3 lines higher */
+            left: 8%; 
+            width: 84%; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 8px; 
+            text-align: left; 
+        }
+
+        /* Position the QR Code exactly inside the rounded box */
+        .back-qr {
+            position: absolute;
+            /* Adjust these slightly if it's off by a millimeter */
+            top: 10.5%;      /* Pushes it down from the top edge */
+            left: 7.5%;      /* Pushes it in from the left edge */
+            width: 32%;      /* Scales the QR code to fit inside the box */
+            height: auto;    /* Keeps the QR code perfectly square */
+            border-radius: 8px; /* Gives the QR code smooth corners to match the box */
+            mix-blend-mode: multiply; /* Helps blend white backgrounds into the card */
+        }
+
+        .back-line-item { 
+            font-family: 'Montserrat', sans-serif;
+            font-size: 9.5px; /* Shrunk slightly to accommodate long addresses */
+            font-weight: 600; 
+            color: #1e293b; 
+            line-height: 1.3;
+        }
+
+        .back-label {
+            font-weight: 800; /* Makes the labels bold and distinct */
+            color: #0f172a;
+            margin-right: 4px;
+        }
+        
+        /* --- FRONT LAYOUT --- */
+
+        .front-nickname { 
+            position: absolute; 
+            top: 64%; /* Positions nickname directly under signature */
+            left: 5%; 
+            width: 90%; 
+            text-align: center; 
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 800; 
+            font-size: 16px; /* Larger font */
+            color: #0f172a; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px; 
+            border-top: 1px solid #94a3b8; /* Moved signature line here */
+            padding-top: 4px; 
+        }
+
+        .front-photo { 
+            position: absolute; 
+            top: 20.5%; 
+            left: 21.5%; /* Mathematically centered (100 - 57) / 2 */
+            width: 57%; 
+            height: 35.8%; /* Explicit height instead of aspect-ratio */
+            object-fit: cover; 
+            border-radius: 50%; 
+            border: none; 
+        }
+        .front-signature { 
+            position: absolute; 
+            top: 54%; 
+            left: 17.5%; /* Mathematically centered (100 - 65) / 2 */
+            width: 65%; 
+            height: 12%; 
+            object-fit: contain; 
+            z-index: 5; 
+            border: none; 
+        }
+        
+        .front-name { 
+            position: absolute; 
+            top: 73.5%; /* Pushed underneath the nickname */
+            left: 5%; 
+            width: 90%; 
+            text-align: center; 
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700; 
+            font-size: 8.5px; /* Shrunk slightly so it fits neatly under the nickname */
+            color: #334155; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px; 
+            border-top: none; /* Removed from here */
+            padding-top: 0; 
+        }
+
+        .front-student-no { 
+            position: absolute; 
+            bottom: 14%; 
+            left: 10%; 
+            width: 80%; 
+            text-align: center; 
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            font-size: 11px; 
+            color: #334155; 
+            letter-spacing: 1px;
+            /* REMOVED: border-bottom: 1px solid #94a3b8; */
+            padding-bottom: 3px; 
+        }
+
+        .validity-text { 
+            position: absolute; 
+            bottom: 5%; 
+            width: 100%; 
+            text-align: center; 
+            font-family: 'Montserrat', sans-serif;
+            font-size: 8.5px; 
+            font-weight: 700; 
+            letter-spacing: 0.5px;
+            color: #b91c1c; /* A slightly darker, more official-looking red */
+        }
+        
+        /* --- UI STYLES --- */
+        #signature-pad { border: 1px solid #cbd5e1; border-radius: 0.375rem; cursor: crosshair; }
+        .web-preview-scale { transform: scale(1.3); transform-origin: top center; margin-bottom: 80px;}
+
+        /* --- PRINT STYLES --- */
+        @page { 
+            margin: 0mm !important; /* Strictly force 0mm margin */
+            size: 2.125in 3.375in; /* Matches PVC ID size */
+        }
+        
+        @media print {
+            body, html { 
+                background-color: white; 
+                margin: 0 !important; 
+                padding: 0 !important; 
+                box-sizing: border-box !important; 
+                width: 100% !important;
+                
+                /* --- NEW ADDITIONS TO FIX BOTTOM MARGIN --- */
+                min-height: 0 !important; /* Overrides Tailwind's min-h-screen */
+                height: auto !important;  /* Allows content to dictate exact height */
+                overflow: hidden !important; /* Prevents tiny sub-pixel scroll margins */
+                /* ------------------------------------------ */
+                
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact; 
+            }
+            
+            /* --- NEW: Strip all Tailwind padding/margins from parent containers --- */
+            .max-w-7xl, #registerTab, #batchTab {
+                padding: 0 !important;
+                margin: 0 !important;
+                gap: 0 !important;
+                max-width: none !important;
+            }
+            
+            /* --- UPDATED: Force the print areas to the absolute top-left --- */
+            #singlePrintArea, #batchPrintArea { 
+                display: block !important; 
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                margin: 0 !important; 
+                padding: 0 !important; 
+                width: 2.125in !important;
+            }
+
+            .batch-item { display: block !important; }
+            
+            /* Scale ID Card to full page size with zero border */
+            .id-card {
+                width: 2.125in !important;
+                height: 3.375in !important;
+                border: none !important; 
+                border-radius: 0 !important; 
+                margin: 0 !important;
+                box-shadow: none !important;
+            }
+            
+            .id-card-container { 
+                display: block !important; 
+                box-shadow: none !important; 
+                transform: none !important; 
+                border: none !important; 
+                margin: 0 !important;
+                padding: 0 !important;
+                gap: 0 !important;
+            }
+            
+            /* Ensure front and back print on separate full pages */
+            .id-front, .id-back { 
+                page-break-after: always !important; 
+                break-after: page !important; 
+            }
+
+            /* --- MOVED TO THE BOTTOM TO GUARANTEE OVERRIDE --- */
+            .no-print { display: none !important; }
+            .hide-for-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 min-h-screen text-slate-800 dark:text-slate-200 transition-colors duration-300 antialiased">
+
+    <!-- NEW: Login Screen -->
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-dualtech-50 to-slate-200 dark:from-slate-900 dark:to-slate-800 z-50 absolute inset-0 transition-colors duration-300">
+        <div class="bg-white/80 dark:bg-slate-800/90 backdrop-blur-md p-10 rounded-2xl shadow-2xl max-w-sm w-full border border-white/20 dark:border-slate-700">
+            <div class="flex justify-center mb-6">
+                <div class="w-16 h-16 bg-gradient-to-tr from-dualtech-600 to-dualtech-400 rounded-full flex items-center justify-center shadow-lg">
+                    <i class="fa-solid fa-id-card text-white text-3xl"></i>
+                </div>
+            </div>
+            <h2 class="text-2xl font-extrabold text-center mb-6 text-slate-800 dark:text-white tracking-tight">Portal Login</h2>
+            <div class="space-y-5">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1">Username</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-user text-slate-400"></i>
+                        </div>
+                        <input type="text" id="loginUser" class="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white" placeholder="Enter username">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1">Password</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fa-solid fa-lock text-slate-400"></i>
+                        </div>
+                        <input type="password" id="loginPass" class="w-full pl-10 p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white" placeholder="Enter password">
+                    </div>
+                </div>
+                <div id="loginError" class="text-red-500 text-sm hidden font-medium bg-red-50 dark:bg-red-900/30 p-2 rounded-lg border border-red-200 dark:border-red-800 text-center"><i class="fa-solid fa-circle-exclamation mr-1"></i>Invalid credentials.</div>
+                <button onclick="handleLogin()" class="w-full bg-gradient-to-r from-dualtech-600 to-dualtech-500 hover:from-dualtech-700 hover:to-dualtech-600 text-white font-bold py-3 rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0"><i class="fa-solid fa-arrow-right-to-bracket mr-2"></i>Log In</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- WRAP EXISTING APP CONTENT: Add id="mainApp" and class="hidden" -->
+    <div id="mainApp" class="hidden">
+
+        <div class="no-print bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm border-b border-slate-200 dark:border-slate-700 sticky top-0 z-40 transition-colors duration-300">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
+                <div class="flex space-x-8 h-full">
+                    <div class="flex items-center text-dualtech-600 dark:text-dualtech-400 font-bold text-lg mr-4">
+                        <i class="fa-solid fa-id-badge text-2xl mr-2"></i>
+                        <span class="hidden sm:inline">Dualtech Portal</span>
+                    </div>
+                    <button onclick="switchTab('registerTab')" id="btn-registerTab" class="h-full px-2 flex items-center font-bold border-b-2 border-dualtech-600 text-dualtech-600 dark:text-dualtech-400 transition-colors"><i class="fa-solid fa-user-plus mr-2"></i>Register</button>
+                    <button onclick="switchTab('batchTab')" id="btn-batchTab" class="h-full px-2 flex items-center font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"><i class="fa-solid fa-layer-group mr-2"></i>Batch</button>
+                </div>
+                <div class="flex items-center">
+                    <button onclick="toggleDarkMode()" id="darkModeToggle" class="p-2 rounded-full text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-dualtech-500" aria-label="Toggle dark mode">
+                        <i class="fa-solid fa-moon text-xl" id="darkModeIcon"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="max-w-7xl mx-auto p-4 md:p-8">
+            
+            <!-- REGISTRATION TAB -->
+            <div id="registerTab" class="flex flex-col xl:flex-row gap-8">
+                <div class="no-print flex-1 bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700 h-fit transition-colors duration-300">
+                    <form id="registrationForm" class="space-y-6">
+                        <div>
+                            <h3 class="font-bold text-lg mb-4 text-dualtech-600 dark:text-dualtech-400 flex items-center border-b border-slate-100 dark:border-slate-700 pb-2"><i class="fa-solid fa-caret-right mr-2 text-sm"></i>Personal Details</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Student ID#</label><input type="text" id="f_studentId" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white" oninput="updateID()"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Nickname</label><input type="text" id="f_nickname" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white" oninput="updateID()"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Date Enrolled</label><input type="date" id="f_dateEnrolled" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white" oninput="updateID()"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Override Validity Year</label><input type="number" id="f_validityOverride" placeholder="e.g. 2027" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white" oninput="updateID()"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Family Name</label><input type="text" id="f_family" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white" oninput="updateID()"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Given Name</label><input type="text" id="f_given" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white" oninput="updateID()"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Middle Name</label><input type="text" id="f_middle" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white" oninput="updateID()"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Suffix (e.g., Jr.)</label><input type="text" id="f_suffix" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white" oninput="updateID()"></div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h3 class="font-bold text-lg mb-4 text-dualtech-600 dark:text-dualtech-400 flex items-center border-b border-slate-100 dark:border-slate-700 pb-2"><i class="fa-solid fa-caret-right mr-2 text-sm"></i>Address</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">House #, Street, Phase, Sitio</label><input type="text" id="f_street" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Brgy.</label><input type="text" id="f_brgy" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Town</label><input type="text" id="f_town" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Province</label><input type="text" id="f_province" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 class="font-bold text-lg mb-4 text-dualtech-600 dark:text-dualtech-400 flex items-center border-b border-slate-100 dark:border-slate-700 pb-2"><i class="fa-solid fa-caret-right mr-2 text-sm"></i>Contact Information</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Student Email Address</label><input type="email" id="f_email" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Contact No.</label><input type="text" id="f_contact" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white" oninput="updateID()"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Emergency Contact Name</label><input type="text" id="f_emContact" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white" oninput="updateID()"></div>
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Emergency Contact No.</label><input type="text" id="f_emContactNo" class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white" oninput="updateID()"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h3 class="font-bold text-lg mb-4 text-dualtech-600 dark:text-dualtech-400 flex items-center border-b border-slate-100 dark:border-slate-700 pb-2"><i class="fa-solid fa-caret-right mr-2 text-sm"></i>Media</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">ID Picture</label><input type="file" id="f_picture" accept="image/*" class="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-dualtech-50 file:text-dualtech-700 hover:file:bg-dualtech-100 dark:file:bg-slate-700 dark:file:text-dualtech-300 dark:hover:file:bg-slate-600 transition-all" onchange="loadPicture(event)"></div>
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Signature</label>
+                                    <canvas id="signature-pad" width="300" height="100" class="w-full bg-white dark:bg-slate-200 rounded border border-slate-300 dark:border-slate-600"></canvas>
+                                    <button type="button" onclick="clearSignature()" class="mt-2 text-sm text-red-600 dark:text-red-400 hover:underline flex items-center gap-1"><i class="fa-solid fa-eraser"></i>>Clear Signature</button>
+                                </div>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="flex justify-end gap-2">
+                            <span id="status-message" class="text-sm font-medium text-blue-600 hidden">Processing...</span>
+                            
+                            <!-- Action Buttons -->
+                            <button type="button" id="exportPdfBtn" onclick="exportIdCardPdf()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all font-semibold"><i class="fa-solid fa-file-pdf mr-2"></i>Export PDF</button>
+                            <button type="button" id="emailBtn" onclick="emailIdCard()" class="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all font-semibold"><i class="fa-solid fa-envelope mr-2"></i>Email ID</button>
+                            <button type="button" id="printBtn" onclick="window.print()" class="bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 text-white px-5 py-2.5 rounded-lg shadow-md transition-all font-semibold"><i class="fa-solid fa-print mr-2"></i>Print</button>
+                            
+                            <!-- CRUD Buttons -->
+                            <button type="button" id="deleteBtn" onclick="deleteRecord()" class="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all hidden font-semibold"><i class="fa-solid fa-trash mr-2"></i>Delete</button>
+                            <button type="button" id="updateBtn" onclick="updateRecord()" class="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-lg shadow-md transition-all hidden font-semibold"><i class="fa-solid fa-pen mr-2"></i>Update</button>
+                            <button type="button" id="saveBtn" onclick="saveData(false, false)" class="bg-dualtech-600 hover:bg-dualtech-700 text-white px-5 py-2.5 rounded-lg shadow-md transition-all font-semibold"><i class="fa-solid fa-floppy-disk mr-2"></i>Save New</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="singlePrintArea" class="flex flex-col items-center gap-4">
+                    <h2 class="no-print text-xl font-extrabold text-slate-600 dark:text-slate-300 flex items-center"><i class="fa-solid fa-eye mr-2"></i>Live Preview</h2>
+                    <div id="singleIdContainer" class="id-card-container web-preview-scale">
+                        <div class="id-card id-front">
+                            <img src="1.png" class="card-bg" alt="Front Background">
+                            <img id="previewPhoto" class="front-photo" src="" alt="" style="display: none; z-index: 5;" />
+                            <img id="previewSignature" class="front-signature" src="" alt="" style="display: none; z-index: 6;" />
+                            <div class="front-nickname" style="z-index: 5;"><span id="previewNickname">NICKNAME</span></div>
+                            <div class="front-name" style="z-index: 5;"><span id="previewName">STUDENT FULL NAME</span></div>
+                            <div class="front-student-no" style="z-index: 5;"><span id="previewIdNumber">STUDENT NUMBER</span></div>
+                        </div>
+                        <div class="id-card id-back">
+                            <img src="back.png" class="card-bg" alt="Back Background">
+                            <img id="previewQR" class="back-qr" src="" style="display: none; z-index: 5;">
+                            <div class="back-layout">
+                                <!-- Validity added here, under the QR code and above the Address -->
+                                <div class="back-line-item" style="margin-bottom: 2px;">
+                                    <span class="back-label" style="color: #b91c1c;">Valid Until:</span> <span id="previewValidity" style="font-weight: 800; color: #b91c1c; font-size: 11px;">----</span>
+                                </div>
+                                <div class="back-line-item">
+                                    <span class="back-label">Address:</span> <span id="previewAddress">N/A</span>
+                                </div>
+                                <div class="back-line-item">
+                                    <span class="back-label">Contact No:</span> <span id="previewContact">CONTACT #</span>
+                                </div>
+                                <div class="back-line-item" style="margin-top: 4px;">
+                                    <span class="back-label">In case of emergency, please notify:</span><br>
+                                    <span id="previewEmName">EMERGENCY NAME</span> - <span id="previewEmContact">EMERGENCY #</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BATCH TAB -->
+            <div id="batchTab" class="hidden flex-col gap-6">
+                <div class="no-print bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700 flex flex-col gap-6 transition-colors duration-300">
+                    <div class="flex justify-between items-center flex-wrap gap-4">
+                        <h2 class="text-2xl font-extrabold text-slate-800 dark:text-white flex items-center">Batch Manager</h2>
+                        <div class="flex gap-2 flex-wrap">
+                            <button onclick="window.open('https://docs.google.com/spreadsheets/d/1p5Ra4c4urtbnz2BYMSJF5lbrtvxP3Y7qkd7BuZrodl0/edit?gid=0#gid=0', '_blank')" class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-semibold shadow-md transition-all"><i class="fa-solid fa-table-list mr-2"></i>Open Masterlist</button>
+                            <button onclick="loadBatchData()" id="loadBatchBtn" class="bg-slate-800 hover:bg-slate-700 dark:bg-slate-600 dark:hover:bg-slate-500 text-white px-4 py-2 rounded-lg shadow-md transition-all font-semibold"><i class="fa-solid fa-cloud-arrow-down mr-2"></i>Load Data</button>
+                            <button onclick="toggleSelectAll()" class="bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white px-4 py-2 rounded-lg shadow-sm transition-all font-semibold"><i class="fa-solid fa-check-double mr-2"></i>Select All</button>
+                            <button onclick="printSelected()" class="bg-dualtech-600 hover:bg-dualtech-700 text-white px-4 py-2 rounded-lg shadow-md transition-all font-semibold"><i class="fa-solid fa-print mr-2"></i>Print Selected</button>
+                            <button onclick="emailSelected()" id="batchEmailBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow-md transition-all font-semibold"><i class="fa-solid fa-envelope mr-2"></i>Email Selected</button>
+                            <button onclick="exportSelectedPdf()" id="batchExportPdfBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-md transition-all font-semibold"><i class="fa-solid fa-file-pdf mr-2"></i>Export Selected to PDF</button>
+                        </div>
+                    </div>
+
+                    <!-- MOVED SEARCH BAR -->
+                    <div class="bg-slate-50 dark:bg-slate-800/50 p-5 border border-slate-200 dark:border-slate-700 rounded-xl flex gap-3 items-end">
+                        <div class="flex-1">
+                            <label class="block text-sm font-semibold text-slate-700">Search by ID or Name to Edit/Delete</label>
+                            <input type="text" id="searchInput" placeholder="Enter Student ID or Exact Name..." class="w-full p-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-dualtech-500 focus:border-dualtech-500 outline-none transition-all dark:text-white">
+                        </div>
+                        <button type="button" onclick="searchRecord()" class="bg-slate-800 hover:bg-slate-700 dark:bg-slate-600 dark:hover:bg-slate-500 text-white px-5 py-2.5 rounded-lg shadow-md transition-all font-semibold h-11"><i class="fa-solid fa-magnifying-glass mr-2"></i>Search</button>
+                        <button type="button" onclick="clearForm()" class="bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white px-5 py-2.5 rounded-lg shadow-sm transition-all font-semibold h-11"><i class="fa-solid fa-eraser mr-2"></i>Clear</button>
+                    </div>
+                    <!-- MOVED: Search Results Table -->
+                    <div id="searchTableContainer" class="hidden mt-4 overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-slate-100 dark:bg-slate-900/80 text-slate-700 dark:text-slate-300">
+                                <tr>
+                                    <th class="p-2">Student ID</th>
+                                    <th class="p-2">Name</th>
+                                    <th class="p-2">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="searchTableBody" class="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-800"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="batch-status" class="w-full text-sm font-bold text-blue-600 hidden text-right">Processing emails... Please wait.</div>
+                    
+                    <!-- NEW: Batch Table for UI -->
+                    <div class="overflow-x-auto w-full mt-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-slate-100">
+                                <tr>
+                                    <th class="p-2 w-10">Sel</th>
+                                    <th class="p-2">Student ID</th>
+                                    <th class="p-2">Name</th>
+                                    <th class="p-2">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="batchTableBody" class="divide-y divide-slate-200 dark:divide-slate-700 bg-white dark:bg-slate-800">
+                                <tr><td colspan="4" class="p-4 text-center text-slate-500">No data loaded yet.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- Hidden container where the actual ID cards live for printing/previewing -->
+                <div id="batchPrintArea" class="hidden flex-wrap gap-6 justify-center md:justify-start"></div>
+            </div>
+        </div>
+
+    </div> <!-- CLOSING DIV FOR mainApp -->
+
+    <script>
+
+        // --- LOGIN FUNCTION ---
+        function handleLogin() {
+            const user = document.getElementById('loginUser').value;
+            const pass = document.getElementById('loginPass').value;
+            
+            // Hardcoded credentials validation
+            if (user === 'registrar' && pass === 'Dualtech2026!') { //[cite: 5]
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('mainApp').classList.remove('hidden');
+            } else {
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        }
+
+        // --- PDF EXPORT FUNCTIONS ---
+        
+        function exportIdCardPdf() {
+            const studentId = document.getElementById('f_studentId').value || 'ID_Card';
+            const originalElement = document.getElementById('singleIdContainer');
+            const btn = document.getElementById('exportPdfBtn');
+            
+            btn.disabled = true;
+            btn.innerText = "Exporting...";
+
+            const clone = originalElement.cloneNode(true);
+            clone.classList.remove('web-preview-scale');
+            
+            // Force the clone container to the top-left
+            clone.style.cssText = 'display: block; margin: 0; padding: 0; position: absolute; top: 0; left: 0; z-index: 9999; background: white;';
+            
+            // Grab the front and back cards individually
+            const cards = Array.from(clone.querySelectorAll('.id-card'));
+            cards.forEach(card => {
+                card.style.border = 'none';
+                card.style.borderRadius = '0';
+                card.style.boxShadow = 'none';
+                card.style.margin = '0';
+                card.style.display = 'block'; // Neutralize any flex layout that breaks PDFs
+            });
+            
+            document.body.appendChild(clone);
+            window.scrollTo(0, 0);
+            
+            setTimeout(async () => {
+                const opt = {
+                    margin: 0, 
+                    filename: `${studentId}.pdf`, 
+                    image: { type: 'jpeg', quality: 1.0 },
+                    html2canvas: { scale: 6, useCORS: true, scrollY: 0, scrollX: 0 },
+                    jsPDF: { unit: 'in', format: [2.125, 3.375], orientation: 'portrait' }
+                    // Notice we completely removed the unreliable 'pagebreak' object
+                };
+                
+                try {
+                    let worker = html2pdf().set(opt);
+                    
+                    // Process front and back sequentially 
+                    for (let i = 0; i < cards.length; i++) {
+                        if (i === 0) {
+                            // Capture the front card
+                            worker = worker.from(cards[i]).toPdf();
+                        } else {
+                            // Manually inject a page break, then capture the back card
+                            worker = worker.get('pdf').then(pdf => pdf.addPage()).from(cards[i]).toContainer().toCanvas().toPdf();
+                        }
+                    }
+                    
+                    await worker.save();
+                } catch (err) {
+                    console.error("Single export failed:", err);
+                    alert("Failed to export PDF.");
+                } finally {
+                    document.body.removeChild(clone);
+                    btn.disabled = false;
+                    btn.innerText = "Export PDF";
+                }
+            }, 500);
+        }
+
+        async function exportSelectedPdf() {
+            const checkboxes = Array.from(document.querySelectorAll('.student-checkbox:checked'));
+            if (checkboxes.length === 0) return alert("Please select at least one record to export.");
+
+            const btn = document.getElementById('batchExportPdfBtn');
+            btn.disabled = true;
+            btn.innerText = "Exporting...";
+
+            const opt = {
+                margin: 0, 
+                filename: `Batch_ID_Cards.pdf`, 
+                image: { type: 'jpeg', quality: 1.0 },
+                html2canvas: { scale: 6, useCORS: true, scrollY: 0, scrollX: 0 },
+                jsPDF: { unit: 'in', format: [2.125, 3.375], orientation: 'portrait' }
+            };
+
+            try {
+                let worker = html2pdf().set(opt);
+                window.scrollTo(0, 0);
+                
+                // Track the very first page so we don't accidentally create a blank starter page
+                let isFirstPage = true;
+
+                for (let i = 0; i < checkboxes.length; i++) {
+                    const studentId = checkboxes[i].dataset.id;
+                    const batchItem = document.getElementById(`preview-box-${studentId}`);
+                    
+                    if (batchItem) {
+                        const idContainer = batchItem.querySelector('.id-card-target');
+                        
+                        batchItem.classList.remove('hidden', 'hide-for-print');
+                        batchItem.classList.add('flex');
+                        
+                        const originalCssText = idContainer.style.cssText;
+                        idContainer.style.cssText = 'display: block; margin: 0; padding: 0; position: absolute; top: 0; left: 0; z-index: 9999; background: white;';
+                        
+                        const cards = Array.from(idContainer.querySelectorAll('.id-card'));
+                        cards.forEach(card => {
+                            card.style.border = 'none';
+                            card.style.borderRadius = '0';
+                            card.style.boxShadow = 'none';
+                            card.style.margin = '0';
+                            card.style.display = 'block';
+                        });
+
+                        await new Promise(resolve => setTimeout(resolve, 250));
+
+                        // Loop through front and back cards for this specific student
+                        for (let j = 0; j < cards.length; j++) {
+                            if (isFirstPage) {
+                                worker = worker.from(cards[j]).toPdf();
+                                isFirstPage = false;
+                            } else {
+                                // Add a new page for every subsequent card (backs, and next student's fronts)
+                                worker = worker.get('pdf').then(pdf => pdf.addPage()).from(cards[j]).toContainer().toCanvas().toPdf();
+                            }
+                        }
+
+                        // Restore original styles
+                        batchItem.classList.add('hidden');
+                        batchItem.classList.remove('flex');
+                        idContainer.style.cssText = originalCssText;
+                        cards.forEach(card => {
+                            card.style.border = '';
+                            card.style.borderRadius = '';
+                            card.style.boxShadow = '';
+                            card.style.margin = '';
+                            card.style.display = '';
+                        });
+                    }
+                }
+                
+                await worker.save();
+                
+            } catch (error) {
+                console.error("Export failed:", error);
+                alert("Failed to export batch PDF.");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Export Selected to PDF";
+            }
+        }
+
+
+
+        // ==========================================
+        // REQUIRED: PASTE YOUR DEPLOYED URL HERE
+        // ==========================================
+
+        // Function to clear the form and reset buttons
+        function clearForm() {
+            document.getElementById('registrationForm').reset();
+            document.getElementById('saveBtn').classList.remove('hidden');
+            document.getElementById('updateBtn').classList.add('hidden');
+            document.getElementById('deleteBtn').classList.add('hidden');
+            updateID(); // Resets the live preview
+        }
+
+        let currentSearchResult = null;
+
+        async function searchRecord() {
+            const query = document.getElementById('searchInput').value.trim();
+            if(!query) return alert("Please enter a Student ID or Name.");
+
+            document.getElementById('status-message').innerText = "Searching...";
+            document.getElementById('status-message').style.display = 'inline-block';
+            document.getElementById('searchTableContainer').classList.add('hidden');
+
+            try {
+                const response = await fetch(`${GAS_WEBAPP_URL}?action=search_student&query=${encodeURIComponent(query)}`);
+                const result = await response.json();
+                
+                if(result.success && result.data) {
+                    currentSearchResult = result.data;
+                    
+                    const tbody = document.getElementById('searchTableBody');
+                    tbody.innerHTML = `
+                        <tr class="hover:bg-slate-50">
+                            <td class="p-2 font-bold">${result.data.studentId}</td>
+                            <td class="p-2">${result.data.given || ''} ${result.data.family || ''}</td>
+                            <td class="p-2">
+                                <button type="button" onclick="loadSelectedSearch()" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">Select & Preview</button>
+                            </td>
+                        </tr>
+                    `;
+                    document.getElementById('searchTableContainer').classList.remove('hidden');
+                } else {
+                    alert("Record not found.");
+                    clearForm();
+                }
+            } catch (error) {
+                alert("Failed to search database.");
+            } finally {
+                document.getElementById('status-message').style.display = 'none';
+            }
+        }
+
+
+        function loadSelectedSearch() {
+            if(!currentSearchResult) return;
+            const data = currentSearchResult;
+            
+            // Populate form fields
+            document.getElementById('f_studentId').value = data.studentId || '';
+            document.getElementById('f_nickname').value = data.nickname || '';
+            document.getElementById('f_dateEnrolled').value = data.dateEnrolled || '';
+            document.getElementById('f_family').value = data.family || '';
+            document.getElementById('f_given').value = data.given || '';
+            document.getElementById('f_middle').value = data.middle || '';
+            document.getElementById('f_suffix').value = data.suffix || '';
+            document.getElementById('f_street').value = data.street || '';
+            document.getElementById('f_brgy').value = data.brgy || '';
+            document.getElementById('f_town').value = data.town || '';
+            document.getElementById('f_province').value = data.province || '';
+            document.getElementById('f_email').value = data.email || '';
+            document.getElementById('f_contact').value = data.contact || '';
+            document.getElementById('f_emContact').value = data.emContact || '';
+            document.getElementById('f_emContactNo').value = data.emContactNo || '';
+            
+            // --- UPDATED IMAGE RENDERING LOGIC ---
+            // Catch variations in what your backend might name the columns/keys
+            const photoData = data.picUrl || data.pictureBase64 || data.picture || data.photo || '';
+            const sigData = data.sigUrl || data.signatureBase64 || data.signature || data.sig || '';
+            
+            const previewPhoto = document.getElementById('previewPhoto');
+            if (photoData) {
+                // If it's already a full Data URI or an HTTP link (Google Drive), use it directly
+                if (photoData.startsWith('data:image') || photoData.startsWith('http')) {
+                    previewPhoto.src = photoData;
+                    pictureBase64 = photoData.startsWith('data:image') ? photoData.split(',')[1] : photoData;
+                } else {
+                    // Otherwise, assume it's raw base64 and append the prefix
+                    previewPhoto.src = `data:image/png;base64,${photoData}`;
+                    pictureBase64 = photoData; // Keep the raw string for updates
+                }
+                previewPhoto.style.display = 'block';
+            } else {
+                previewPhoto.style.display = 'none';
+                pictureBase64 = null;
+            }
+
+            const previewSignature = document.getElementById('previewSignature');
+            if (sigData) {
+                if (sigData.startsWith('data:image') || sigData.startsWith('http')) {
+                    previewSignature.src = sigData;
+                } else {
+                    previewSignature.src = `data:image/png;base64,${sigData}`;
+                }
+                previewSignature.style.display = 'block';
+            } else {
+                previewSignature.style.display = 'none';
+            }
+            // --- END UPDATED IMAGE RENDERING LOGIC ---
+
+            // UI Adjustments
+            document.getElementById('saveBtn').classList.add('hidden');
+            document.getElementById('updateBtn').classList.remove('hidden');
+            document.getElementById('deleteBtn').classList.remove('hidden');
+            document.getElementById('searchTableContainer').classList.add('hidden'); 
+            
+            updateID(); 
+            
+            switchTab('registerTab');
+        }
+
+        // Function to delete a record
+        async function deleteRecord() {
+            const studentId = document.getElementById('f_studentId').value;
+            if(!studentId) return;
+            
+            if(!confirm(`Are you sure you want to delete the record for ${studentId}?`)) return;
+
+            document.getElementById('status-message').innerText = "Deleting...";
+            document.getElementById('status-message').style.display = 'inline-block';
+
+            try {
+                const response = await fetch(GAS_WEBAPP_URL, { 
+                    method: 'POST', 
+                    body: JSON.stringify({ action: 'delete_student', studentId: studentId }) 
+                });
+                const result = await response.json();
+                
+                if(result.success) {
+                    alert("Record Deleted Successfully!");
+                    clearForm();
+                } else {
+                    alert("Error deleting data: " + result.error);
+                }
+            } catch (error) {
+                alert("Failed to connect to the database.");
+            } finally {
+                document.getElementById('status-message').style.display = 'none';
+            }
+        }
+
+        // Function to update a record
+        async function updateRecord() {
+            const studentId = document.getElementById('f_studentId').value;
+            if(!studentId) return alert("Student ID is required!");
+
+            document.getElementById('updateBtn').disabled = true;
+            document.getElementById('status-message').innerText = "Updating...";
+            document.getElementById('status-message').style.display = 'inline-block';
+
+            // --- UPDATED SIGNATURE FALLBACK ---
+            let signatureBase64 = null;
+            const blankCanvas = document.createElement('canvas'); 
+            blankCanvas.width = canvas.width; 
+            blankCanvas.height = canvas.height;
+            
+            if (canvas.toDataURL() !== blankCanvas.toDataURL()) {
+                // A new signature was drawn on the canvas
+                signatureBase64 = canvas.toDataURL();
+            } else if (currentSearchResult) {
+                // Keep the old signature if the canvas is blank
+                const sigData = currentSearchResult.sigUrl || currentSearchResult.signatureBase64 || currentSearchResult.signature || '';
+                if (sigData) {
+                    signatureBase64 = sigData.startsWith('http') ? sigData : 
+                                     (sigData.startsWith('data:image') ? sigData : `data:image/png;base64,${sigData}`);
+                }
+            }
+            // ----------------------------------
+
+            const payload = {
+                action: 'update_student',
+                studentId: studentId, 
+                nickname: document.getElementById('f_nickname').value, // Add this line
+                family: document.getElementById('f_family').value, 
+                given: document.getElementById('f_given').value, 
+                middle: document.getElementById('f_middle').value,
+                suffix: document.getElementById('f_suffix').value,
+                dateEnrolled: document.getElementById('f_dateEnrolled').value,
+                street: document.getElementById('f_street').value,
+                brgy: document.getElementById('f_brgy').value,
+                town: document.getElementById('f_town').value,
+                province: document.getElementById('f_province').value,
+                contact: document.getElementById('f_contact').value, 
+                emContact: document.getElementById('f_emContact').value,
+                emContactNo: document.getElementById('f_emContactNo').value, 
+                email: document.getElementById('f_email').value,
+                pictureBase64: pictureBase64, 
+                signatureBase64: signatureBase64
+            };
+
+            try {
+                const response = await fetch(GAS_WEBAPP_URL, { method: 'POST', body: JSON.stringify(payload) });
+                const result = await response.json();
+                if(result.success) {
+                    alert("Record Updated Successfully!");
+                } else { 
+                    alert("Error updating data: " + result.error); 
+                }
+            } catch (error) { 
+                alert("Failed to connect to the database."); 
+            } finally {
+                document.getElementById('updateBtn').disabled = false;
+                document.getElementById('status-message').style.display = 'none';
+            }
+        }
+
+        const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxzfyyqsqaWN1vmedKE4JDjLsdcC1TmJ5MbyMbAYY115qkPpAmR9UNZclF97OUeYSfNRg/exec"; 
+        
+        let pictureBase64 = null;
+
+        
+        // --- DARK MODE LOGIC ---
+        function toggleDarkMode() {
+            const html = document.documentElement;
+            const icon = document.getElementById('darkModeIcon');
+            
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.theme = 'light';
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+            } else {
+                html.classList.add('dark');
+                localStorage.theme = 'dark';
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+            }
+        }
+
+        // Initialize Dark Mode on load
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+            const icon = document.getElementById('darkModeIcon');
+            if (icon) {
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+            }
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+
+function switchTab(tabId) {
+            document.getElementById('registerTab').classList.add('hidden');
+            document.getElementById('batchTab').classList.add('hidden', 'flex');
+            document.getElementById('batchTab').classList.remove('flex');
+            
+            const activeClass = "h-full px-2 flex items-center font-bold border-b-2 border-dualtech-600 text-dualtech-600 dark:text-dualtech-400 transition-colors";
+            const inactiveClass = "h-full px-2 flex items-center font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors";
+
+            document.getElementById('btn-registerTab').className = inactiveClass;
+            document.getElementById('btn-registerTab').innerHTML = '<i class="fa-solid fa-user-plus mr-2"></i>Register';
+            document.getElementById('btn-batchTab').className = inactiveClass;
+            document.getElementById('btn-batchTab').innerHTML = '<i class="fa-solid fa-layer-group mr-2"></i>Batch';
+            
+            if(tabId === 'registerTab') {
+                document.getElementById('registerTab').classList.remove('hidden');
+                document.getElementById('btn-registerTab').className = activeClass;
+                document.getElementById('singlePrintArea').classList.remove('no-print');
+                document.getElementById('batchPrintArea').classList.add('no-print');
+            } else {
+                document.getElementById('batchTab').classList.remove('hidden');
+                document.getElementById('batchTab').classList.add('flex');
+                document.getElementById('btn-batchTab').className = activeClass;
+                document.getElementById('singlePrintArea').classList.add('no-print');
+                document.getElementById('batchPrintArea').classList.remove('no-print');
+            }
+        }
+
+        function updateID() {
+            const studentId = document.getElementById('f_studentId').value.trim();
+            const nickname = document.getElementById('f_nickname').value || 'NICKNAME'; // NEW
+            const given = document.getElementById('f_given').value;
+            const middle = document.getElementById('f_middle').value;
+            const family = document.getElementById('f_family').value;
+            const suffix = document.getElementById('f_suffix').value;
+            
+            let mi = middle ? middle.charAt(0) + '.' : '';
+            document.getElementById('previewNickname').innerText = nickname; // NEW
+            document.getElementById('previewName').innerText = `${given} ${mi} ${family} ${suffix}`.trim() || 'STUDENT NAME';
+            document.getElementById('previewIdNumber').innerText = studentId || 'STUDENT NUMBER';
+
+            document.getElementById('previewContact').innerText = document.getElementById('f_contact').value || 'CONTACT #';
+            document.getElementById('previewEmName').innerText = document.getElementById('f_emContact').value || 'EMERGENCY NAME';
+            document.getElementById('previewEmContact').innerText = document.getElementById('f_emContactNo').value || 'EMERGENCY #';
+
+            // Calculate Validity (Checks for Override first, then defaults to +2 Years)
+            const dateEnrolled = document.getElementById('f_dateEnrolled').value;
+            const overrideYear = document.getElementById('f_validityOverride').value;
+
+            if (overrideYear) {
+                // If a manual year is typed, use it
+                document.getElementById('previewValidity').innerText = overrideYear;
+            } else if (dateEnrolled) {
+                // Otherwise, calculate +2 years from enrolled date
+                let d = new Date(dateEnrolled);
+                d.setFullYear(d.getFullYear() + 2);
+                document.getElementById('previewValidity').innerText = d.getFullYear();
+            } else {
+                document.getElementById('previewValidity').innerText = "----";
+            }
+
+            // Build the full address for live preview
+            const street = document.getElementById('f_street').value;
+            const brgy = document.getElementById('f_brgy').value;
+            const town = document.getElementById('f_town').value;
+            const prov = document.getElementById('f_province').value;
+            const fullAddress = [street, brgy, town, prov].filter(Boolean).join(", ");
+            document.getElementById('previewAddress').innerText = fullAddress || 'N/A';
+
+            // QR Generation
+            const qrElement = document.getElementById('previewQR');
+            if(studentId) {
+                const verifyUrl = `${GAS_WEBAPP_URL}?verify=${encodeURIComponent(studentId)}`;
+                qrElement.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(verifyUrl)}`;
+                qrElement.style.display = 'block';
+            } else {
+                qrElement.style.display = 'none';
+            }
+        }
+
+        function loadPicture(event) {
+            const file = event.target.files[0];
+            if(file) {
+                const reader = new FileReader();
+                reader.onloadend = function() {
+                    document.getElementById('previewPhoto').src = reader.result;
+                    document.getElementById('previewPhoto').style.display = 'block';
+                    pictureBase64 = reader.result.split(',')[1];
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        const canvas = document.getElementById('signature-pad');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+        canvas.addEventListener('mousedown', (e) => { isDrawing = true; draw(e); }); 
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing); 
+        canvas.addEventListener('mouseout', stopDrawing);
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); isDrawing = true; draw(e.touches[0]); }, {passive: false});
+        canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e.touches[0]); }, {passive: false});
+        canvas.addEventListener('touchend', stopDrawing);
+
+        function draw(e) {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX || e.touches[0].clientX) - rect.left;
+            const y = (e.clientY || e.touches[0].clientY) - rect.top;
+            ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.strokeStyle = '#000';
+            ctx.lineTo(x, y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, y);
+            updateSignatureImage();
+        }
+        function stopDrawing() { isDrawing = false; ctx.beginPath(); }
+        function clearSignature() { ctx.clearRect(0, 0, canvas.width, canvas.height); updateSignatureImage(); }
+        
+        function updateSignatureImage() {
+            const sigImg = document.getElementById('previewSignature');
+            const blank = document.createElement('canvas'); blank.width = canvas.width; blank.height = canvas.height;
+            if (canvas.toDataURL() == blank.toDataURL()) { sigImg.style.display = 'none'; } else { sigImg.src = canvas.toDataURL(); sigImg.style.display = 'block'; }
+        }
+
+        async function saveData(doPrint, doPdf) {
+            const studentId = document.getElementById('f_studentId').value;
+            if(!studentId) return alert("Student ID is required!");
+
+            // FIXED: Changed 'savePrintBtn' to 'saveBtn'
+            document.getElementById('saveBtn').disabled = true;
+            document.getElementById('status-message').style.display = 'inline-block';
+
+            let signatureBase64 = null;
+            const blankCanvas = document.createElement('canvas'); blankCanvas.width = canvas.width; blankCanvas.height = canvas.height;
+            if (canvas.toDataURL() !== blankCanvas.toDataURL()) signatureBase64 = canvas.toDataURL();
+
+            const payload = {
+                action: 'register_student',
+                studentId: studentId, 
+                nickname: document.getElementById('f_nickname').value,
+                family: document.getElementById('f_family').value, 
+                given: document.getElementById('f_given').value, 
+                middle: document.getElementById('f_middle').value,
+                suffix: document.getElementById('f_suffix').value,
+                dateEnrolled: document.getElementById('f_dateEnrolled').value,
+                street: document.getElementById('f_street').value,
+                brgy: document.getElementById('f_brgy').value,
+                town: document.getElementById('f_town').value,
+                province: document.getElementById('f_province').value,
+                contact: document.getElementById('f_contact').value, 
+                emContact: document.getElementById('f_emContact').value,
+                emContactNo: document.getElementById('f_emContactNo').value, 
+                email: document.getElementById('f_email').value,
+                pictureBase64: pictureBase64, 
+                signatureBase64: signatureBase64
+            };
+
+            try {
+                const response = await fetch(GAS_WEBAPP_URL, { method: 'POST', body: JSON.stringify(payload) });
+                const result = await response.json();
+                if(result.success) {
+                    if (doPrint) window.print();
+                    alert("Record Saved Successfully!");
+                } else { alert("Error saving data: " + result.error); }
+            } catch (error) { alert("Failed to connect to the database."); } finally {
+                // FIXED: Changed 'savePrintBtn' to 'saveBtn'
+                document.getElementById('saveBtn').disabled = false;
+                document.getElementById('status-message').style.display = 'none';
+            }
+        }
+
+        function emailIdCard() {
+            const email = document.getElementById('f_email').value;
+            const studentId = document.getElementById('f_studentId').value;
+            if(!email || !studentId) return alert("Student ID and Email are required!");
+
+            const btn = document.getElementById('emailBtn');
+            const statusMsg = document.getElementById('status-message');
+            
+            btn.disabled = true;
+            statusMsg.innerText = "Generating PDF...";
+            statusMsg.style.display = 'inline-block';
+
+            const originalElement = document.getElementById('singleIdContainer');
+            const clone = originalElement.cloneNode(true);
+            clone.classList.remove('web-preview-scale');
+            
+            // FIXED: Use 'position: fixed' to prevent scroll offset calculation errors, and ensure it displays as a block
+            clone.style.cssText = 'margin: 0; padding: 0; position: fixed; top: 0; left: 0; z-index: 9999; background: white; transform: none; width: 2.125in; height: 3.375in; display: block;';
+            
+            const cards = Array.from(clone.querySelectorAll('.id-card'));
+            cards.forEach(card => {
+                card.style.border = 'none';
+                card.style.borderRadius = '0';
+                card.style.boxShadow = 'none';
+                card.style.margin = '0';
+                card.style.padding = '0';
+                // FIXED: Ensure cards are initially hidden to avoid layout shifting
+                card.style.display = 'block';
+            });
+            
+            document.body.appendChild(clone);
+            window.scrollTo(0, 0);
+
+            setTimeout(async () => {
+                const opt = {
+                    margin: 0, 
+                    image: { type: 'jpeg', quality: 1.0 },
+                    // FIXED: Added x: 0, y: 0 to force html2canvas to capture from the absolute corner
+                    html2canvas: { scale: 6, useCORS: true, scrollY: 0, scrollX: 0, x: 0, y: 0 },
+                    jsPDF: { unit: 'in', format: [2.125, 3.375], orientation: 'portrait' }
+                };
+                
+                try {
+                    let worker = html2pdf().set(opt);
+                    
+                    for (let i = 0; i < cards.length; i++) {
+                        await new Promise(resolve => setTimeout(resolve, 150));
+
+                        if (i === 0) {
+                            worker = worker.from(cards[i]).toPdf();
+                        } else {
+                            worker = worker.get('pdf').then(pdf => pdf.addPage()).from(cards[i]).toContainer().toCanvas().toPdf();
+                        }
+                        
+                        await worker; 
+                    }
+                    
+                    const pdfDataUri = await worker.output('datauristring');
+                    const rawBase64 = pdfDataUri.split(',')[1];
+                    
+                    statusMsg.innerText = "Sending Email...";
+
+                    const response = await fetch(GAS_WEBAPP_URL, { 
+                        method: 'POST', 
+                        body: JSON.stringify({ action: 'email_id', email: email, studentId: studentId, pdfBase64: rawBase64 }) 
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if(result.success) {
+                        alert("ID Card emailed!"); 
+                    } else {
+                        throw new Error(result.error || "Failed to send");
+                    }
+
+                } catch (err) {
+                    console.error("Email export failed:", err);
+                    alert("Failed to email PDF.");
+                } finally {
+                    document.body.removeChild(clone);
+                    btn.disabled = false;
+                    statusMsg.style.display = 'none';
+                }
+            }, 500);
+        }
+
+        // --- BATCH PROCESSING FUNCTIONS ---
+
+        async function loadBatchData() {
+            const btn = document.getElementById('loadBatchBtn');
+            const printContainer = document.getElementById('batchPrintArea');
+            const tableBody = document.getElementById('batchTableBody');
+            
+            btn.innerText = "Loading..."; btn.disabled = true;
+            
+            try {
+                const res = await fetch(GAS_WEBAPP_URL); 
+                const result = await res.json();
+                
+                if (result.success && result.data.length > 0) {
+                    printContainer.innerHTML = ""; 
+                    tableBody.innerHTML = "";
+                    
+                    result.data.forEach((student) => {
+                        let picSrc = student.picUrl || '';
+                        let sigSrc = student.sigUrl || '';
+                        
+                        const verifyUrl = `${GAS_WEBAPP_URL}?verify=${encodeURIComponent(student.studentId)}`;
+                        const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(verifyUrl)}`;
+
+                        let validityText = "----";
+                        if (student.dateEnrolled) {
+                            let d = new Date(student.dateEnrolled);
+                            if (!isNaN(d.getTime())) {
+                                d.setFullYear(d.getFullYear() + 2);
+                                validityText = d.getFullYear(); // Grabs just the year
+                            }
+                        }
+                        
+                        // 1. Build Table Row (UI)
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td class="p-2"><input type="checkbox" class="student-checkbox w-4 h-4 cursor-pointer" data-id="${student.studentId}" data-email="${student.email || ''}" checked></td>
+                            <td class="p-2 font-bold">${student.studentId}</td>
+                            <td class="p-2">${student.fullName}</td>
+                            <td class="p-2">
+                                <button type="button" onclick="toggleBatchPreview('${student.studentId}')" class="text-xs bg-slate-200 px-2 py-1 rounded hover:bg-slate-300">Preview ID</button>
+                            </td>
+                        `;
+                        tableBody.appendChild(tr);
+
+                        // 2. Build ID Card (Hidden by default in UI, injected into print area)
+                        let cardHtml = `
+                            <div class="batch-item flex-col items-center gap-2 hidden" id="preview-box-${student.studentId}">
+                                <div class="id-card-container id-card-target">
+                                    <div class="id-card id-front">
+                                        <img src="1.png" class="card-bg">
+                                        <img class="front-photo" src="${picSrc}" style="z-index: 5; ${picSrc ? '' : 'display:none;'}">
+                                        <img class="front-signature" src="${sigSrc}" style="z-index: 6; ${sigSrc ? '' : 'display:none;'}">
+                                        <div class="front-nickname" style="z-index: 5;">${student.nickname || 'NICKNAME'}</div>
+                                        <div class="front-name" style="z-index: 5;">${student.fullName}</div>
+                                        <div class="front-student-no" style="z-index: 5;">${student.studentId}</div>
+                                    </div>
+                                    <div class="id-card id-back">
+                                        <img src="back.png" class="card-bg">
+                                        <img class="back-qr" src="${qrSrc}" style="z-index: 5;">
+                                        <div class="back-layout">
+                                            <div class="back-line-item" style="margin-bottom: 2px;"><span class="back-label" style="color: #b91c1c;">Valid Until:</span> <span style="font-weight: 800; color: #b91c1c; font-size: 11px;">${validityText}</span></div>
+                                            <div class="back-line-item"><span class="back-label">Address:</span> ${student.address || 'N/A'}</div>
+                                            <div class="back-line-item"><span class="back-label">Contact No:</span> ${student.contact || 'N/A'}</div>
+                                            <div class="back-line-item" style="margin-top: 4px;"><span class="back-label">In case of emergency, please notify:</span><br>${student.emContact || 'N/A'} - ${student.emContactNo || 'N/A'}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>`;
+                        printContainer.insertAdjacentHTML('beforeend', cardHtml);
+                    });
+                    
+                    printContainer.style.display = 'flex';
+                } else { 
+                    tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center">No student data found.</td></tr>`;
+                    printContainer.innerHTML = "";
+                }
+            } catch (e) { 
+                alert("Error loading batch data."); 
+                console.error(e);
+            } finally { 
+                btn.innerText = "Load Data"; btn.disabled = false; 
+            }
+        }
+        
+        function toggleBatchPreview(studentId) {
+            const previewBox = document.getElementById(`preview-box-${studentId}`);
+            if (previewBox.classList.contains('hidden')) {
+                previewBox.classList.remove('hidden');
+                previewBox.classList.add('flex');
+            } else {
+                previewBox.classList.add('hidden');
+                previewBox.classList.remove('flex');
+            }
+        }
+
+        function printSelected() {
+            let hasSelected = false;
+            const checkboxes = document.querySelectorAll('.student-checkbox');
+            
+            // 1. Find the index of the very last checked item to prevent trailing white margins
+            let lastSelectedIndex = -1;
+            checkboxes.forEach((checkbox, index) => {
+                if (checkbox.checked) lastSelectedIndex = index;
+            });
+
+            // 2. Loop through and apply visibility classes
+            checkboxes.forEach((checkbox, index) => {
+                const studentId = checkbox.dataset.id;
+                const previewBox = document.getElementById(`preview-box-${studentId}`);
+                
+                if (checkbox.checked) {
+                    hasSelected = true;
+                    previewBox.classList.remove('hide-for-print', 'hidden'); 
+                    previewBox.classList.add('flex');
+                    
+                    // Dynamically remove the page-break on the LAST selected card's back
+                    const backCard = previewBox.querySelector('.id-back');
+                    if (index === lastSelectedIndex) {
+                        backCard.style.setProperty('page-break-after', 'auto', 'important');
+                        backCard.style.setProperty('break-after', 'auto', 'important');
+                    } else {
+                        // Ensure earlier cards still break properly
+                        backCard.style.setProperty('page-break-after', 'always', 'important');
+                        backCard.style.setProperty('break-after', 'page', 'important');
+                    }
+                } else {
+                    previewBox.classList.add('hide-for-print');
+                }
+            });
+
+            if (!hasSelected) return alert("Please select at least one record to print.");
+            
+            // 3. Trigger Print
+            window.print();
+            
+            // 4. Clean up UI afterward
+            checkboxes.forEach(checkbox => {
+                const studentId = checkbox.dataset.id;
+                const previewBox = document.getElementById(`preview-box-${studentId}`);
+                previewBox.classList.add('hidden');
+                previewBox.classList.remove('flex', 'hide-for-print');
+                
+                // Reset inline styles
+                const backCard = previewBox.querySelector('.id-back');
+                if(backCard) {
+                    backCard.style.removeProperty('page-break-after');
+                    backCard.style.removeProperty('break-after');
+                }
+            });
+        }
+
+        async function emailSelected() {
+            const checkboxes = Array.from(document.querySelectorAll('.student-checkbox:checked'));
+            if (checkboxes.length === 0) return alert("Please select at least one record to email.");
+
+            const btn = document.getElementById('batchEmailBtn');
+            const statusBox = document.getElementById('batch-status');
+            btn.disabled = true;
+            statusBox.style.display = 'block';
+
+            for (let i = 0; i < checkboxes.length; i++) {
+                let cb = checkboxes[i];
+                let studentId = cb.dataset.id;
+                let email = cb.dataset.email;
+
+                if (!email || email === "undefined") {
+                    statusBox.innerText = `Skipping ${studentId} (No Email Provided)...`;
+                    continue;
+                }
+
+                statusBox.innerText = `Generating & Emailing PDF for ${studentId} (${i + 1}/${checkboxes.length})...`;
+                
+                let batchItem = document.getElementById(`preview-box-${studentId}`);
+                if (!batchItem) continue;
+
+                let idContainer = batchItem.querySelector('.id-card-target');
+                if (!idContainer) continue;
+
+                // Temporarily show the item for rendering
+                batchItem.classList.remove('hidden', 'hide-for-print');
+                batchItem.classList.add('flex');
+                
+                const originalCssText = idContainer.style.cssText;
+                idContainer.style.cssText = 'display: block; margin: 0; padding: 0; position: absolute; top: 0; left: 0; z-index: 9999; background: white; transform: none;';
+                
+                const cards = Array.from(idContainer.querySelectorAll('.id-card'));
+                cards.forEach(card => {
+                    card.style.border = 'none';
+                    card.style.borderRadius = '0';
+                    card.style.boxShadow = 'none';
+                    card.style.margin = '0';
+                    card.style.display = 'block';
+                });
+
+                // Wait a split second for images to load visibility
+                await new Promise(resolve => setTimeout(resolve, 250));
+
+                try {
+                    const opt = {
+                        margin: 0, 
+                        image: { type: 'jpeg', quality: 1.0 },
+                        html2canvas: { scale: 6, useCORS: true, scrollY: 0, scrollX: 0 },
+                        jsPDF: { unit: 'in', format: [2.125, 3.375], orientation: 'portrait' }
+                    };
+                    
+                    let worker = html2pdf().set(opt);
+                    
+                    for (let j = 0; j < cards.length; j++) {
+                        // Force a small delay so html2canvas catches the rendered images
+                        await new Promise(resolve => setTimeout(resolve, 50));
+
+                        // FIXED: Use j === 0 instead of the missing 'isFirstPage' variable
+                        if (j === 0) {
+                            worker = worker.from(cards[j]).toPdf();
+                        } else {
+                            worker = worker.get('pdf').then(pdf => pdf.addPage()).from(cards[j]).toContainer().toCanvas().toPdf();
+                        }
+                        
+                        // FIXED: Await here
+                        await worker;
+                    }
+
+                    // Extract the base64 payload
+                    const pdfDataUri = await worker.output('datauristring');
+                    const rawBase64 = pdfDataUri.split(',')[1];
+
+                    // Fire off to the backend
+                    const response = await fetch(GAS_WEBAPP_URL, { 
+                        method: 'POST', 
+                        body: JSON.stringify({ action: 'email_id', email: email, studentId: studentId, pdfBase64: rawBase64 }) 
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (!result.success) {
+                        console.error(`Server failed to email ${studentId}: ${result.error}`);
+                        statusBox.innerText = `Error emailing ${studentId}: ${result.error}`;
+                        await new Promise(resolve => setTimeout(resolve, 2000)); 
+                    }
+
+                } catch (error) {
+                    console.error(`Failed to process ${studentId}:`, error);
+                    statusBox.innerText = `System error on ${studentId}. Check console.`;
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                } finally {
+                    // Hide it and clean up styles again
+                    batchItem.classList.add('hidden');
+                    batchItem.classList.remove('flex');
+                    idContainer.style.cssText = originalCssText;
+                    cards.forEach(card => {
+                        card.style.border = '';
+                        card.style.borderRadius = '';
+                        card.style.boxShadow = '';
+                        card.style.margin = '';
+                        card.style.display = '';
+                    });
+                }
+            }
+
+            statusBox.innerText = "Batch email process complete!";
+            setTimeout(() => { statusBox.style.display = 'none'; }, 3000);
+            btn.disabled = false;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+const puppeteer = require('puppeteer');
+
+(async () => {
+    const browser = await puppeteer.launch({ headless: 'new' });
+    const page = await browser.newPage();
+    
+    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+    page.on('pageerror', error => console.error('PAGE ERROR:', error.message));
+
+    await page.goto('file:///C:/Users/rober/dualtech-ojt-portal/public/schooling.html');
+    
+    // wait a bit for react to render
+    await new Promise(r => setTimeout(r, 2000));
+    
+    await browser.close();
+})();

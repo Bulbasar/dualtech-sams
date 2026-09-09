@@ -1,0 +1,662 @@
+                            rangeStartStr = d.toLocaleDateString('en-CA').substring(0, 7);
+                        } else if (viewMode === 'Monthly' || perfectMode === 'Monthly' || perfectMode === '6-Months') {
+                            rangeStartStr = d.toLocaleDateString('en-CA').substring(0, 4); // fetch year?
+                        }
+
+                        try {
+                            const attChunks = chunkArray(uids, 30);
+                            for (const chunk of attChunks) {
+                                await Promise.all(chunk.map(async (uid) => {
+                                    const attSnap = await getDocs(collection(db, 'artifacts', APP_ID, 'users', uid, 'attendanceLogs'));
+                                    attSnap.forEach(doc => {
+                                        allLogs.push({ id: doc.id, uid: uid, ...doc.data() });
+                                    });
+                                }));
+                            }
+                        } catch (err) {
+                            console.error("Error fetching attendance logs:", err);
+                        }
+                    }
+
+                    // 3. Fetch Requests and Schooling
+                    allLeaveRequests = [];
+                    if (studentIds.length > 0) {
+                        const reqChunks = chunkArray(studentIds, 30);
+                        for (const chunk of reqChunks) {
+                            try {
+                                const reqSnap = await getDocs(query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'requests'), where('studentId', 'in', chunk)));
+                                reqSnap.forEach(doc => {
+                                    allLeaveRequests.push({ id: doc.id, ...doc.data() });
+                                });
+                            } catch (e) { console.error("Error fetching requests:", e); }
+                        }
+                    }
+
+                    let allSchooling = [];
+                    if (studentIds.length > 0) {
+                        const schoolChunks = chunkArray(studentIds, 30);
+                        for (const chunk of schoolChunks) {
+                            try {
+                                const schoolSnap = await getDocs(query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'mentoring_attendance'), where('studentId', 'in', chunk)));
+                                schoolSnap.forEach(doc => {
+                                    allSchooling.push({ id: doc.id, ...doc.data() });
+                                });
+                            } catch (e) { console.error("Error fetching schooling", e); }
+                        }
+                    }
+
+                    // --- Processing Data ---
+                    const processedData = filteredTrainees.map(trainee => {
+                        const traineeLogs = allLogs.filter(l => l.uid === trainee.uid);
+                        const traineeSchooling = allSchooling.filter(s => s.studentId === trainee.studentId);
+                        const traineeRequests = allLeaveRequests.filter(r => r.studentId === trainee.studentId && (r.status === 'Approved' || r.status === 'Approved by IC' || r.icStatus === 'Approved' || r.hrStatus === 'Approved')); // Only approved leaves
+
+                        let result = {
+                            ...trainee,
+                            monthSinceIpt: getMonthsDifference(trainee.iptDateStart || trainee['IPT Date Start'], targetD),
+                            remarks: trainee.isRegistered ? '' : 'Not registered in portal',
+                            totalHours: 0,
+                            daysPresent: 0,
+                            daysAbsent: 0,
+                            awolCount: 0,
+                            excusedCount: 0
+                        };
+
+                        const processDay = (dateString) => {
+                            const dayLogs = traineeLogs.filter(l => l.dateString === dateString);
+                            let timeIn = null, timeOut = null;
+                            let inLoc = null, outLoc = null;
+                            dayLogs.forEach(l => {
+                                if (l.type === 'IN') { timeIn = l.timestamp; inLoc = getLoc(l.clockInDetails || l); }
+                                if (l.type === 'OUT') { timeOut = l.timestamp; outLoc = getLoc(l.clockOutDetails || l); }
+                            });
+
+                            let isSchoolingDay = false;
+                            traineeSchooling.forEach(s => {
+                                let match = s.date === dateString;
+                                if (!match && s.timestamp) {
+                                    const d = new Date(s.timestamp);
+                                    if (!isNaN(d.getTime())) {
+                                        match = d.toISOString().startsWith(dateString);
+                                    }
+                                }
+                                if (match) {
+                                    if (['Present', 'Late', 'Verified'].includes(s.status)) isSchoolingDay = true;
+                                }
+                            });
+
+                            let isExcused = false;
+                            const formatDateLocal = (dateStr) => {
+                                if (!dateStr) return '';
+                                if (typeof dateString === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr;
+                                let p = dateStr;
+                                if (typeof p === 'string' && !p.includes('T')) p = p.replace(/-/g, '/');
+                                const d = new Date(p);
+                                if (isNaN(d.getTime())) return String(dateStr);
+                                if (typeof dateStr === 'string' && dateStr.includes('T')) {
+                                    const offset = d.getTimezoneOffset() * 60000;
+                                    return new Date(d.getTime() - offset).toISOString().split('T')[0];
+                                }
+                                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                const dd = String(d.getDate()).padStart(2, '0');
+                                return `${d.getFullYear()}-${mm}-${dd}`;
+                            };
+                            traineeRequests.forEach(r => {
+                                const rDate = formatDateLocal(r.date);
+                                const tDate = formatDateLocal(r.targetDate);
+                                const lDate = formatDateLocal(r.leaveDate);
+                                if ((r.type?.toLowerCase().includes('leave') || r.type?.toLowerCase().includes('absence') || r.requestType?.toLowerCase().includes('leave')) &&
+                                    (rDate === dateString || tDate === dateString || lDate === dateString || String(r.date).includes(dateString))) {
+                                    
+                                    // Only mark as excused if Approved
+                                    if (r.icStatus === 'Approved' || r.status === 'Approved') {
+                                        isExcused = true;
+                                    }
+                                }
+                            });
+
+                            let hours = 0;
+                            if (timeIn && timeOut) {
+                                hours = (new Date(timeOut) - new Date(timeIn)) / (1000 * 60 * 60);
+                                const compSettings = companySettings[trainee.company || trainee['Company Name']];
+                                if (compSettings && compSettings.applyBreak && hours > 4) {
+                                    hours -= (compSettings.breakMinutes / 60);
+                                }
+                            }
+
+                            let inOutOfRange = false;
+                            let inNoLocation = false;
+                            let outOutOfRange = false;
+                            let outNoLocation = false;
+
+                            const compSettings = companySettings[trainee.company || trainee['Company Name']];
+
+                            if (timeIn && compSettings && compSettings.location) {
+                                const compLoc = getLoc(compSettings);
+                                if (inLoc && compLoc) {
+                                    const dist = getDistanceFromLatLonInM(inLoc.lat, inLoc.lon, compLoc.lat, compLoc.lon);
+                                    if (dist > (compSettings.radius || 1000)) inOutOfRange = true;
+                                } else if (!inLoc) {
+                                    inNoLocation = true;
+                                }
+                            } else if (timeIn && !inLoc) {
+                                inNoLocation = true;
+                            }
+
+                            if (timeOut && compSettings && compSettings.location) {
+                                const compLoc = getLoc(compSettings);
+                                if (outLoc && compLoc) {
+                                    const dist = getDistanceFromLatLonInM(outLoc.lat, outLoc.lon, compLoc.lat, compLoc.lon);
+                                    if (dist > (compSettings.radius || 1000)) outOutOfRange = true;
+                                } else if (!outLoc) {
+                                    outNoLocation = true;
+                                }
+                            } else if (timeOut && !outLoc) {
+                                outNoLocation = true;
+                            }
+
+                            const dateObj = new Date(dateString);
+                            const dayOfWeekNum = dateObj.getDay();
+                            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                            const traineeRestDay = (trainee.restDay || '').trim().toLowerCase();
+                            let isRestDay = false;
+                            if (traineeRestDay === dayNames[dayOfWeekNum].toLowerCase()) {
+                                isRestDay = true;
+                            } else if ((traineeRestDay === '' || traineeRestDay === 'weekend') && (dayOfWeekNum === 0 || dayOfWeekNum === 6)) {
+                                isRestDay = true;
+                            }
+                            
+                            let isHoliday = globalHolidays.some(h => h.date === dateString);
+                            let holidayName = isHoliday ? globalHolidays.find(h => h.date === dateString).name : '';
+                            
+                            if (compSettings && compSettings.customHolidays) {
+                                const customHol = compSettings.customHolidays.find(h => h.date === dateString);
+                                if (customHol) {
+                                    isHoliday = true;
+                                    holidayName = customHol.name;
+                                }
+                            }
+
+                            return { timeIn, timeOut, hours, isSchoolingDay, isExcused, inLoc, outLoc, inOutOfRange, inNoLocation, outOutOfRange, outNoLocation, isRestDay, isHoliday, holidayName };
+                        };
+
+                        if (viewMode === 'Daily') {
+                            const dateStr = targetD.toLocaleDateString('en-CA');
+                            const dayStats = processDay(dateStr);
+
+                            result.clockIn = dayStats.timeIn;
+                            result.clockOut = dayStats.timeOut;
+                            result.inLoc = dayStats.inLoc;
+                            result.outLoc = dayStats.outLoc;
+                            result.inOutOfRange = dayStats.inOutOfRange;
+                            result.inNoLocation = dayStats.inNoLocation;
+                            result.outOutOfRange = dayStats.outOutOfRange;
+                            result.outNoLocation = dayStats.outNoLocation;
+
+                            if (dayStats.isSchoolingDay) {
+                                result.rowColor = 'bg-blue-100 dark:bg-blue-900/30';
+                                result.statusRemark = 'Schooling Day';
+                            } else if (dayStats.isHoliday) {
+                                result.rowColor = 'bg-gray-100 dark:bg-gray-800';
+                                result.statusRemark = `Holiday (${dayStats.holidayName || 'Declared'})`;
+                            } else if (dayStats.isRestDay) {
+                                result.rowColor = 'bg-gray-100 dark:bg-gray-800';
+                                result.statusRemark = 'Rest Day';
+                            } else if (dayStats.hours >= 8) {
+                                result.rowColor = 'bg-green-100 dark:bg-green-900/30';
+                                result.statusRemark = 'Completed Shift';
+                            } else if (dayStats.timeIn && !dayStats.timeOut) {
+                                result.rowColor = 'bg-amber-100 dark:bg-amber-900/30';
+                                result.statusRemark = 'Currently Clocked In';
+                            } else if (dayStats.timeIn && dayStats.timeOut && dayStats.hours < 8) {
+                                result.rowColor = 'bg-red-100 dark:bg-red-900/30';
+                                result.statusRemark = 'Undertime';
+                            } else if (dayStats.isExcused) {
+                                result.rowColor = 'bg-orange-100 dark:bg-orange-900/30';
+                                result.statusRemark = 'Absent (Acknowledge/Approved by the IC)';
+                            } else {
+                                result.rowColor = 'bg-red-100 dark:bg-red-900/30';
+                                result.statusRemark = 'Absent (AWOL)';
+                            }
+
+                            if (result.remarks && result.statusRemark) result.remarks += ' | ' + result.statusRemark;
+                            else if (result.statusRemark) result.remarks = result.statusRemark;
+
+                            if (dayStats.inOutOfRange) result.remarks += ' | Clock In Out of Range';
+                            if (dayStats.inNoLocation) result.remarks += ' | Clock In No Location Data';
+                            if (dayStats.outOutOfRange) result.remarks += ' | Clock Out Out of Range';
+                            if (dayStats.outNoLocation) result.remarks += ' | Clock Out No Location Data';
+
+                        } else if (viewMode === 'Weekly' || viewMode === 'Monthly') {
+                            let startDate, endDate;
+                            if (viewMode === 'Weekly') {
+                                const d = new Date(targetD);
+                                const day = d.getDay() || 7;
+                                if (day !== 1) d.setHours(-24 * (day - 1));
+                                startDate = new Date(d);
+                                endDate = new Date(d);
+                                endDate.setDate(endDate.getDate() + 4);
+                            } else {
+                                startDate = new Date(targetD.getFullYear(), targetD.getMonth(), 1);
+                                endDate = new Date(targetD.getFullYear(), targetD.getMonth() + 1, 0);
+                            }
+
+                            let expectedWorkingDays = 0;
+
+                            let currDate = new Date(startDate);
+                            while (currDate <= endDate && currDate <= new Date()) {
+                                const dateStr = currDate.toLocaleDateString('en-CA');
+                                const dayStats = processDay(dateStr);
+
+                                if (dayStats.isRestDay || dayStats.isHoliday) {
+                                    if (dayStats.timeIn) {
+                                        result.daysPresent++;
+                                        result.totalHours += dayStats.hours || 0;
+                                    }
+                                } else {
+                                    expectedWorkingDays++;
+                                    if (dayStats.isSchoolingDay) {
+                                        result.daysPresent++;
+                                        result.totalHours += 8;
+                                    } else if (dayStats.hours >= 8) {
+                                        result.daysPresent++;
+                                        result.totalHours += dayStats.hours;
+                                    } else {
+                                        result.daysAbsent++;
+                                        if (dayStats.isExcused) result.excusedCount++;
+                                        else result.awolCount++;
+                                        result.totalHours += dayStats.hours || 0;
+                                    }
+                                }
+                                currDate.setDate(currDate.getDate() + 1);
+                            }
+
+                            if (viewMode === 'Weekly') {
+                                if (result.daysPresent >= 5) result.rowColor = 'bg-green-100 dark:bg-green-900/30';
+                                else result.rowColor = 'bg-red-100 dark:bg-red-900/30';
+                            } else if (viewMode === 'Monthly') {
+                                if (result.daysPresent >= expectedWorkingDays && expectedWorkingDays > 0) result.rowColor = 'bg-green-100 dark:bg-green-900/30';
+                                else result.rowColor = 'bg-red-100 dark:bg-red-900/30';
+                            }
+                        } else if (viewMode === 'Perfect') {
+                            result.isPerfect = true;
+                            let startDate, endDate;
+                            const d = new Date(targetD);
+                            if (perfectMode === 'Weekly') {
+                                const day = d.getDay() || 7;
+                                if (day !== 1) d.setHours(-24 * (day - 1));
+                                startDate = new Date(d);
+                                endDate = new Date(d);
+                                endDate.setDate(endDate.getDate() + 4);
+                            } else if (perfectMode === 'Monthly') {
+                                startDate = new Date(d.getFullYear(), d.getMonth(), 1);
+                                endDate = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                            } else if (perfectMode === '6-Months') {
+                                const iptStart = new Date(trainee.iptDateStart || trainee['IPT Date Start']);
+                                if (isNaN(iptStart)) { result.isPerfect = false; }
+                                else {
+                                    startDate = iptStart;
+                                    endDate = new Date(iptStart);
+                                    endDate.setMonth(endDate.getMonth() + 6);
+                                }
+                            }
+
+                            if (result.isPerfect) {
+                                let currDate = new Date(startDate);
+                                let expectedCount = 0;
+                                let actualCount = 0;
+                                while (currDate <= endDate && currDate <= new Date()) {
+                                    const dayOfWeek = currDate.getDay();
+                                    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                                        expectedCount++;
+                                        const dateStr = currDate.toLocaleDateString('en-CA');
+                                        const dayStats = processDay(dateStr);
+                                        // For perfect, must be exactly 8 hours OJT shift. Not schooling day.
+                                        if (dayStats.hours >= 8 && !dayStats.isSchoolingDay) {
+                                            actualCount++;
+                                        } else {
+                                            result.isPerfect = false;
+                                            break;
+                                        }
+                                    }
+                                    currDate.setDate(currDate.getDate() + 1);
+                                }
+                                if (expectedCount > 0 && actualCount !== expectedCount) {
+                                    result.isPerfect = false;
+                                }
+                            }
+                        }
+
+                        return result;
+                    });
+
+                    if (viewMode === 'Perfect') {
+                        setData(processedData.filter(t => t.isPerfect));
+                    } else {
+                        setData(processedData);
+                    }
+
+                } catch (error) {
+                    console.error("Error fetching data:", error);
+                }
+                setLoading(false);
+            };
+
+            useEffect(() => {
+                fetchData();
+            }, [viewMode, selectedDate, statusFilter, perfectMode, selectedCompany, activeOnly]);
+
+            const handleSort = (key) => {
+                let direction = 'asc';
+                if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
+                setSortConfig({ key, direction });
+            };
+
+            const sortedData = useMemo(() => {
+                let sortableData = [...data];
+
+                if (searchQuery.trim()) {
+                    const q = searchQuery.toLowerCase();
+                    sortableData = sortableData.filter(t => {
+                        const name = `${t.firstName || ''} ${t.lastName || ''}`.toLowerCase();
+                        const id = (t.studentId || '').toLowerCase();
+                        const company = (t.company || t['Company Name'] || '').toLowerCase();
+                        return name.includes(q) || id.includes(q) || company.includes(q);
+                    });
+                }
+
+                if (sortConfig.key) {
+                    sortableData.sort((a, b) => {
+                        let aVal = a[sortConfig.key] || '';
+                        let bVal = b[sortConfig.key] || '';
+                        if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+                        if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+                        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+                        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+                        return 0;
+                    });
+                }
+                return sortableData;
+            }, [data, sortConfig, searchQuery]);
+
+            const TableHeader = ({ label, sortKey, align = 'left' }) => (
+                <th
+                    className={`p-4 font-black uppercase text-[10px] tracking-wider text-slate-500 dark:text-slate-400 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition ${align === 'center' ? 'text-center' : 'text-left'}`}
+                    onClick={() => sortKey && handleSort(sortKey)}
+                >
+                    <div className={`flex items-center gap-1 ${align === 'center' ? 'justify-center' : 'justify-start'}`}>
+                        {label}
+                        {sortConfig.key === sortKey && (
+                            <span className="text-primary-500">{sortConfig.direction === 'asc' ? 'â†‘' : 'â†“'}</span>
+                        )}
+                    </div>
+                </th>
+            );
+
+            return (
+                <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 space-y-6 animate-in fade-in duration-300">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <div>
+                            <h2 className="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-2">
+                                <ListChecks className="text-primary-600" /> Trainees' Company Attendance
+                            </h2>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Monitor daily, weekly, and monthly attendance.</p>
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                            <button
+                                onClick={() => setShowFilters(!showFilters)}
+                                className="px-4 py-2 rounded-xl text-sm font-bold transition-colors bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 shadow-sm flex items-center gap-1.5"
+                            >
+                                {showFilters ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                {showFilters ? 'Hide Filters' : 'Show Filters'}
+                            </button>
+                            {['Daily', 'Weekly', 'Monthly', 'Perfect'].map(m => (
+                                <button
+                                    key={m}
+                                    onClick={() => setViewMode(m)}
+                                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${viewMode === m ? 'bg-primary-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                                >
+                                    {m}
+                                </button>
+                            ))}
+                            <button
+                                onClick={() => setShowExportModal(true)}
+                                className="px-4 py-2 rounded-xl text-sm font-bold transition-colors bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1.5"
+                            >
+                                <Download size={14} /> Export XLS
+                            </button>
+                        </div>
+                    </div>
+
+                    {showFilters && (
+                        <div className="flex flex-wrap gap-4 items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm animate-in slide-in-from-top-2">
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date Selection</label>
+                                <input
+                                    type={(() => {
+                                        if (viewMode === 'Perfect') {
+                                            if (perfectMode === 'Monthly' || perfectMode === '6-Months') return 'month';
+                                            if (perfectMode === 'Weekly') return 'week';
+                                            return 'date';
+                                        }
+                                        if (viewMode === 'Monthly') return 'month';
+                                        if (viewMode === 'Weekly') return 'week';
+                                        return 'date';
+                                    })()}
+                                    value={(() => {
+                                        const isMonth = viewMode === 'Monthly' || (viewMode === 'Perfect' && (perfectMode === 'Monthly' || perfectMode === '6-Months'));
+                                        const isWeek = viewMode === 'Weekly' || (viewMode === 'Perfect' && perfectMode === 'Weekly');
+                                        if (isMonth) return selectedDate.substring(0, 7);
+                                        if (isWeek) {
+                                            // Convert selectedDate (YYYY-MM-DD) to YYYY-Www format
+                                            const d = new Date(selectedDate);
+                                            const yearStart = new Date(d.getFullYear(), 0, 1);
+                                            const days = Math.floor((d - yearStart) / 86400000);
+                                            const weekNum = Math.ceil((days + yearStart.getDay() + 1) / 7);
+                                            return `${d.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+                                        }
+                                        return selectedDate;
+                                    })()}
+                                    onChange={e => {
+                                        let val = e.target.value;
+                                        if (!val) return;
+                                        if (val.length === 7 && val.indexOf('W') === -1) {
+                                            // Month input: YYYY-MM â†’ YYYY-MM-01
+                                            val += '-01';
+                                        } else if (val.includes('-W')) {
+                                            // Week input: YYYY-Www â†’ convert to Monday of that week
+                                            const [yearStr, weekStr] = val.split('-W');
+                                            const year = parseInt(yearStr);
+                                            const week = parseInt(weekStr);
+                                            const jan1 = new Date(year, 0, 1);
+                                            const dayOfWeek = jan1.getDay() || 7;
+                                            const mondayOfWeek1 = new Date(jan1);
+                                            mondayOfWeek1.setDate(jan1.getDate() + (1 - dayOfWeek));
+                                            const targetMonday = new Date(mondayOfWeek1);
+                                            targetMonday.setDate(mondayOfWeek1.getDate() + (week - 1) * 7);
+                                            val = targetMonday.toLocaleDateString('en-CA');
+                                        }
+                                        setSelectedDate(val);
+                                    }}
+                                    className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium dark:text-white"
+                                />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Company</label>
+                                <select
+                                    value={selectedCompany}
+                                    onChange={e => setSelectedCompany(e.target.value)}
+                                    className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium dark:text-white min-w-[150px]"
+                                >
+                                    <option value="">All Companies</option>
+                                    {companies.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+                            {viewMode !== 'Perfect' && (
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status Filter</label>
+                                    <select
+                                        value={statusFilter}
+                                        onChange={e => {
+                                            setStatusFilter(e.target.value);
+                                            if (e.target.value !== 'Active') setActiveOnly(false);
+                                        }}
+                                        className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium dark:text-white min-w-[150px]"
+                                    >
+                                        <option value="Active">Active / Completed (in range)</option>
+                                        <option value="LOA">LOA</option>
+                                        <option value="Completed IPT">Completed IPT</option>
+                                    </select>
+                                </div>
+                            )}
+                            {viewMode !== 'Perfect' && statusFilter === 'Active' && (
+                                <div className="flex items-center gap-2 mt-5">
+                                    <input
+                                        type="checkbox"
+                                        checked={activeOnly}
+                                        onChange={e => setActiveOnly(e.target.checked)}
+                                        id="activeOnly"
+                                        className="w-4 h-4 text-primary-600 bg-slate-100 border-slate-300 rounded focus:ring-primary-500 dark:focus:ring-primary-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 cursor-pointer"
+                                    />
+                                    <label htmlFor="activeOnly" className="text-[11px] font-bold text-slate-500 dark:text-slate-400 cursor-pointer uppercase tracking-wider">"Active" Only</label>
+                                </div>
+                            )}
+                            {viewMode === 'Perfect' && (
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Perfect Attendance Range</label>
+                                    <select
+                                        value={perfectMode}
+                                        onChange={e => setPerfectMode(e.target.value)}
+                                        className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium dark:text-white min-w-[150px]"
+                                    >
+                                        <option value="Weekly">Weekly</option>
+                                        <option value="Monthly">Monthly</option>
+                                        <option value="6-Months">6-Months</option>
+                                    </select>
+                                </div>
+                            )}
+                            <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Search</label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                                    <input
+                                        type="text"
+                                        placeholder="Search trainee name or ID..."
+                                        value={searchQuery}
+                                        onChange={e => setSearchQuery(e.target.value)}
+                                        className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium dark:text-white outline-none focus:border-primary-500"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex flex-col gap-1 relative ml-auto">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider text-transparent select-none">Columns</label>
+                                <button
+                                    onClick={() => setShowColumnToggle(!showColumnToggle)}
+                                    className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium dark:text-white flex items-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                >
+                                    <Columns size={16} /> Columns
+                                </button>
+                                {showColumnToggle && (
+                                    <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-20 p-2 flex flex-col gap-1">
+                                        <div className="px-2 py-1 text-[10px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-700 mb-1">Toggle Columns</div>
+                                        {Object.keys(visibleColumns).map(col => {
+                                            // hide columns not relevant to the current view
+                                            if (col === 'monthSinceIpt' && viewMode === 'Perfect') return null;
+                                            if ((col === 'clockIn' || col === 'clockOut' || col === 'remarks') && viewMode !== 'Daily') return null;
+                                            if ((col === 'daysPresent' || col === 'daysAbsent' || col === 'totalHours') && (viewMode !== 'Weekly' && viewMode !== 'Monthly')) return null;
+
+                                            const labelMap = { studentId: 'Student ID#', studentName: 'Student Name', company: 'Assigned Company', iptDateStart: 'IPT Date Start', iptDateEnd: 'IPT Date End', monthSinceIpt: 'Month Since IPT', clockIn: 'Clock In', clockOut: 'Clock Out', remarks: 'Remarks', daysPresent: 'Days Present', daysAbsent: 'Days Absent', totalHours: 'Total Hours' };
+
+                                            return (
+                                                <label key={col} className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg cursor-pointer transition-colors group">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={visibleColumns[col]}
+                                                        onChange={e => setVisibleColumns(prev => ({ ...prev, [col]: e.target.checked }))}
+                                                        className="w-4 h-4 text-primary-600 bg-slate-100 border-slate-300 rounded focus:ring-primary-500 cursor-pointer"
+                                                    />
+                                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white">{labelMap[col]}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-20">
+                            <div className="relative flex items-center justify-center mb-6">
+                                <img src="/dualtech-logo.png" alt="Loading" className="w-16 h-16 object-contain animate-pulse opacity-90 drop-shadow-md" />
+                                <Loader2 className="absolute text-primary-600/50 animate-spin" size={100} strokeWidth={1.5} />
+                            </div>
+                            <p className="text-slate-500 font-bold tracking-wide animate-pulse">Analyzing Attendance Records...</p>
+                        </div>
+                    ) : (
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+                                            {visibleColumns.studentId && <TableHeader label="Student ID#" sortKey="studentId" />}
+                                            {visibleColumns.studentName && <TableHeader label="Student Name" sortKey="firstName" />}
+                                            {visibleColumns.company && <TableHeader label="Assigned Company" sortKey="company" />}
+                                            {visibleColumns.iptDateStart && <TableHeader label="IPT Date Start" sortKey="iptDateStart" />}
+                                            {visibleColumns.iptDateEnd && <TableHeader label="IPT Date End" sortKey="iptDateEnd" />}
+                                            {viewMode !== 'Perfect' && visibleColumns.monthSinceIpt && <TableHeader label="Month (Since Start)" sortKey="monthSinceIpt" align="center" />}
+
+                                            {viewMode === 'Daily' && (
+                                                <>
+                                                    {visibleColumns.clockIn && <TableHeader label="Clock In" />}
+                                                    {visibleColumns.clockOut && <TableHeader label="Clock Out" />}
+                                                    {visibleColumns.remarks && <TableHeader label="Remarks" />}
+                                                </>
+                                            )}
+
+                                            {(viewMode === 'Weekly' || viewMode === 'Monthly') && (
+                                                <>
+                                                    {visibleColumns.daysPresent && <TableHeader label="Days Present" sortKey="daysPresent" align="center" />}
+                                                    {visibleColumns.daysAbsent && <TableHeader label="Days Absent" sortKey="daysAbsent" align="center" />}
+                                                    {visibleColumns.totalHours && <TableHeader label="Total Hours" sortKey="totalHours" align="center" />}
+                                                </>
+                                            )}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                        {sortedData.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="10" className="p-8 text-center text-slate-400 italic">No trainees match the current filters.</td>
+                                            </tr>
+                                        ) : (
+                                            sortedData.map((t, idx) => (
+                                                <tr key={idx} className={`${t.rowColor || 'bg-white dark:bg-slate-800'} transition-colors hover:opacity-80`}>
+                                                    {visibleColumns.studentId && <td className="p-4 font-bold text-slate-700 dark:text-slate-300">{t.studentId}</td>}
+                                                    {visibleColumns.studentName && <td className="p-4 font-medium text-slate-600 dark:text-slate-400">{t.lastName}, {t.firstName}</td>}
+                                                    {visibleColumns.company && <td className="p-4 text-slate-600 dark:text-slate-400">{t.company || t['Company Name']}</td>}
+                                                    {visibleColumns.iptDateStart && <td className="p-4 text-slate-600 dark:text-slate-400">{t.iptDateStart || t['IPT Date Start']}</td>}
+                                                    {visibleColumns.iptDateEnd && <td className="p-4 text-slate-600 dark:text-slate-400">{t.iptDateEnd || t['IPT Date End']}</td>}
+                                                    {viewMode !== 'Perfect' && visibleColumns.monthSinceIpt && <td className="p-4 font-medium text-center text-slate-600 dark:text-slate-400">{t.monthSinceIpt}</td>}
+
+                                                    {viewMode === 'Daily' && (
+                                                        <>
+                                                            {visibleColumns.clockIn && (
+                                                                <td className="p-4 font-medium">
+                                                                    {t.clockIn ? (
+                                                                        <span
+                                                                            onClick={() => { if (!t.inOutOfRange && !t.inNoLocation && t.inLoc) setMapPreviewLocation(t.inLoc) }}
+                                                                            className={`inline-flex items-center gap-1 ${t.inOutOfRange || t.inNoLocation ? 'text-red-500 font-bold' : t.inLoc ? 'text-emerald-600 font-bold cursor-pointer hover:underline' : 'text-slate-600 dark:text-slate-400'}`}
+                                                                            title={t.inOutOfRange ? "Out of valid location range" : t.inNoLocation ? "No location data" : t.inLoc ? "Within valid location - Click to view" : ""}
+                                                                        >
+                                                                            {formatTime(t.clockIn)}
+                                                                            {t.inLoc && !t.inOutOfRange && !t.inNoLocation && <MapPin size={12} className="ml-0.5" />}
+                                                                        </span>
+                                                                    ) : '--:--'}
+                                                                </td>
+                                                            )}
+                                                            {visibleColumns.clockOut && (
+                                                                <td className="p-4 font-medium">
+                                                                    {t.clockOut ? (
+                                                                        <span
+                                                                            onClick={() => { if (!t.outOutOfRange && !t.outNoLocation && t.outLoc) setMapPreviewLocation(t.outLoc) }}
+                                              

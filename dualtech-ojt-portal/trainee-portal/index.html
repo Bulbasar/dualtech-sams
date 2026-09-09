@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/dualtech-logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dualtech Unified SAMS Portal</title>
+  </head>
+  <body>
+    <script>
+      // Apply theme immediately to prevent flash of wrong theme.
+      // Checks for any user-specific theme first, falls back to system preference.
+      (function() {
+        var keys = Object.keys(localStorage);
+        var userTheme = null;
+        for (var i = 0; i < keys.length; i++) {
+          if (keys[i].startsWith('app-theme-')) {
+            userTheme = localStorage.getItem(keys[i]);
+            break;
+          }
+        }
+        // If no per-user key found, check the legacy generic key
+        if (!userTheme) userTheme = localStorage.getItem('app-theme');
+        if (userTheme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else if (userTheme === 'light') {
+          document.documentElement.classList.remove('dark');
+        } else {
+          // System preference
+          if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+          }
+        }
+      })();
+    </script>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

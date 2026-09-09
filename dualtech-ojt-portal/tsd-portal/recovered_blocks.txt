@@ -1,0 +1,159 @@
+--- TOOL CALL: Editing file ---
+# Integrate Company Attendance Tab into TSD Portal
+
+This plan details copying the "Company Attendance" function from `ic-portal.html` into `tsd-portal/src/App.jsx` and modifying it to fetch all trainees regardless of "Assigned IC".
+
+## User Review Required
+
+- Is the name "Company Attendance" suitable for the TSD portal, or would you prefer a different title for the tab?
+- The new tab will be added to the sidebar under a new section or grouped with existing items. If you have a specific location for it in the sidebar (e.g., under a specific section), please let me know.
+
+## Proposed Changes
+
+### TSD Portal Application
+
+#### [MODIFY] [App.jsx](file:///c:/Users/rober/dualtech-ojt-portal/tsd-portal/src/App.jsx)
+
+1. **Import Icons:**
+   - Add missing Lucide React icons (`CheckCircle`, `ChevronUp`, `Columns`, `ListChecks`, `Loader`) used by the Company Attendance UI to the existing `lucide-react` import statement.
+
+2. **Add Component Logic (`CompanyAttendanceView`):**
+   - Extract the `AttendanceSchoolingTab` component from `ic-portal.html` and inject it into `App.jsx` as `CompanyAttendanceView`.
+   - In `CompanyAttendanceView`, locate the data fetching logic for trainees.
+   - Remove the `.where('assignedIC', '==', ...)` clause from the trainee Firestore query, allowing the component to fetch all trainee records.
+
+3. **Update Sidebar:**
+   - Add a new navigation button in the `Sidebar` component for "Company Attendance" (e.g., `setActiveView('company_attendance')`).
+
+4. **Update Main View Router:**
+   - In the main `App` component's `switch (activeView)` block, add a case for `'company_attendance'` that returns `<CompanyAttendanceView currentUser={user} />`.
+
+## Verification Plan
+
+### Automated Tests
+- `npm run build` within `tsd-portal` to ensure all JSX syntax and imports are valid.
+
+### Manual Verification
+- Log in to the TSD portal.
+- Verify the presence of the new "Company Attendance" tab in the sidebar.
+- Click the tab and ensure the attendance dashboard loads correctly.
+- Verify that it displays records for *all* trainees, not just a specific subset.
+--- CHUNK END ---
+--- TOOL CALL: Writing to file ---
+--- TOOL CALL: Writing to file ---
+--- TOOL CALL: Editing file ---
+      const menuItems = [
+          { id: 'performance', name: 'ASTP Performance', icon: Activity },
+          { id: 'company_attendance', name: 'Company Attendance', icon: ListChecks },
+          { id: 'ojtAttendance', name: 'OJT Attendance', icon: ClipboardList },
+          { id: 'visitSchedule', name: 'Visit Schedule', icon: Calendar },
+          { id: 'allowanceRecords', name: 'Allowance Records', icon: DollarSign },
+          { id: 'settings', name: 'Settings', icon: Settings },
+      ];
+--- CHUNK END ---
+--- TOOL CALL: Editing file ---
+--- TOOL CALL: Updating UI part of Company Attendance ---
+                                    {!selectedCompany ? (
+                                        <tr><td colSpan="7" className="p-8 text-center text-slate-400">Please select a company to view attendance records.</td></tr>
+                                    ) : loadingLogs && filteredRecords.length === 0 ? (
+                                        <tr><td colSpan="7" className="p-8 text-center text-emerald-600 font-bold">Fetching logs for {selectedCompany}...</td></tr>
+                                    ) : filteredRecords.length > 0 ? (
+                                        <>
+                                            {loadingLogs && (
+                                                <tr><td colSpan="7" className="p-3 text-center bg-blue-50 text-blue-600 text-xs font-bold animate-pulse">Actively fetching records from the database... ({filteredRecords.length} loaded so far)</td></tr>
+                                            )}
+                                            {filteredRecords.slice(0, 50).map(record => (
+                                                <tr key={record.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                                                    <td className="p-3 md:p-4 font-semibold text-slate-800 text-sm">{record.traineeName}</td>
+                                                    <td className="p-3 md:p-4 text-xs font-bold text-slate-500">{record.status}</td>
+                                                    <td className="p-3 md:p-4 text-xs md:text-sm text-slate-600">{record.date}</td>
+                                                    <td className="p-3 md:p-4 text-xs md:text-sm font-mono text-slate-600">{record.timeIn || '--:--'}</td>
+                                                    <td className="p-3 md:p-4 text-xs md:text-sm font-mono text-slate-600">{record.timeOut || '--:--'}</td>
+                                                    <td className="p-4 text-center">
+                                                        <span className={`px-3 py-1 rounded-full text-xs font-black uppercase ${
+                                                            record.status === 'Present' ? 'bg-emerald-100 text-emerald-700' :
+                                                            record.status === 'Late' ? 'bg-amber-100 text-amber-700' :
+                                                            record.status === 'Absent' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'
+                                                        }`}>{record.status || 'No Status'}</span>
+                                                    </td>
+                                                    <td className="p-4 text-sm text-slate-500 italic">{record.ic}</td>
+                                                </tr>
+                                            ))}
+                                            {filteredRecords.length > 50 && (
+                                                <tr><td colSpan="7" className="p-4 text-center text-slate-500 font-medium bg-slate-50">Showing first 50 of {filteredRecords.length} records.</td></tr>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            {loadingLogs && (
+                                                <tr><td colSpan="7" className="p-3 text-center bg-blue-50 text-blue-600 text-xs font-bold animate-pulse">Actively fetching records from the database...</td></tr>
+                                            )}
+                                            {!loadingLogs && (
+                                                <tr><td colSpan="7" className="p-8 text-center text-slate-400">No records found for this date.</td></tr>
+                                            )}
+                                        </>
+                                    )}
+--- CHUNK END ---
+--- TOOL CALL: Modifying Export UI for All Companies scope ---
+                                    <label className={labelClass}>Export Scope</label>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => { setExportScope('company'); setSearchQuery(''); setSelectedTrainee(null); }} className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-bold transition-colors ${exportScope === 'company' ? 'bg-primary-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>Per Company</button>
+                                        <button onClick={() => { setExportScope('trainee'); setSearchQuery(''); setSelectedExportCompany(''); }} className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-bold transition-colors ${exportScope === 'trainee' ? 'bg-primary-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>Per Trainee</button>
+                                        <button onClick={() => { setExportScope('all_companies'); setSearchQuery(''); setSelectedExportCompany(''); setSelectedTrainee(null); }} className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-bold transition-colors ${exportScope === 'all_companies' ? 'bg-primary-600 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>All Companies</button>
+                                    </div>
+                                </div>
+--- CHUNK END ---
+                            {/* Row 2: Search */}
+                            {exportScope !== 'all_companies' && (
+                                <div className="relative" ref={searchRef}>
+                                    <label className={labelClass}>{exportScope === 'trainee' ? 'Search Trainee' : 'Search Company'}</label>
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+                                        <input
+                                            type="text"
+                                            placeholder={exportScope === 'trainee' ? 'Type trainee name or ID...' : 'Type company name...'}
+                                            value={searchQuery}
+                                            onChange={e => { setSearchQuery(e.target.value); setShowDropdown(true); }}
+                                            onFocus={() => setShowDropdown(true)}
+                                            className={`${inputClass} pl-9`}
+                                        />
+                                    </div>
+
+                                    {/* Selected indicator */}
+                                    {exportScope === 'trainee' && selectedTrainee && (
+                                        <div className="mt-2 flex items-center gap-2 bg-primary-50 dark:bg-primary-900/30 border border-primary-200 dark:border-primary-800 rounded-lg px-3 py-2 text-sm">
+                                            <CheckCircle size={14} className="text-primary-600" />
+                                            <span className="font-bold text-primary-700 dark:text-primary-300">{selectedTrainee.lastName}, {selectedTrainee.firstName}</span>
+                                            <span className="text-primary-500">({selectedTrainee.studentId})</span>
+                                            <button onClick={() => { setSelectedTrainee(null); setSearchQuery(''); }} className="ml-auto text-primary-400 hover:text-primary-600"><X size={14} /></button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+--- CHUNK END ---
+--- TOOL CALL: Editing file ---
+--- TOOL CALL: Editing file ---
+--- TOOL CALL: Editing file ---
+
+--- CHUNK END ---
+--- TOOL CALL: Editing file ---
+--- TOOL CALL: Editing file ---
+      const menuItems = [
+          { id: 'performance', name: 'ASTP Performance', icon: Activity },
+          { id: 'company_attendance', name: 'Company Attendance', icon: ListChecks },
+          { id: 'ojtAttendance', name: 'OJT Attendance', icon: ClipboardList },
+          { id: 'visitSchedule', name: 'Visit Schedule', icon: Calendar },
+          { id: 'allowanceRecords', name: 'Allowance Records', icon: DollarSign },
+          { id: 'settings', name: 'Settings', icon: Settings },
+      ];
+--- CHUNK END ---
+--- TOOL CALL: Fixing broken dualtech-logo.png in OJT Attendance tab ---
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center py-20">
+                            <div className="relative flex items-center justify-center mb-6">
+                                <img src="/dualtech-logo.png" alt="Loading" className="w-16 h-16 object-contain animate-pulse opacity-90 drop-shadow-md" />
+                                <Loader2 className="absolute text-primary-600/50 animate-spin" size={100} strokeWidth={1.5} />
+                            </div>
+                            <p className="text-slate-500 font-bold tracking-wide animate-pulse">Analyzing Attendance Records...</p>
+                        </div>
+--- CHUNK END ---

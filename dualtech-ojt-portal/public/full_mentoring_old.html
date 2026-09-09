@@ -1,0 +1,203 @@
+        function App() {
+            const [user, setUser] = useState(null);
+            const [showProfileModal, setShowProfileModal] = useState(false);
+            const [isAuthorized, setIsAuthorized] = useState(false);
+            const [loading, setLoading] = useState(true);
+            const [activeTab, setActiveTab] = useState('astp_schooling');
+            const [darkMode, setDarkMode] = useState(() => localStorage.getItem('mentoring_darkMode') === 'true');
+            const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+            const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+            const [showGlobalSearchDropdown, setShowGlobalSearchDropdown] = useState(false);
+
+            const searchRef = useRef(null);
+            useEffect(() => {
+                const handleClickOutside = (event) => {
+                    if (searchRef.current && !searchRef.current.contains(event.target)) {
+                        setShowGlobalSearchDropdown(false);
+                    }
+                };
+                document.addEventListener('mousedown', handleClickOutside);
+                return () => document.removeEventListener('mousedown', handleClickOutside);
+            }, []);
+
+            useEffect(() => {
+                if (darkMode) { document.documentElement.classList.add('dark'); localStorage.setItem('mentoring_darkMode', 'true'); } 
+                else { document.documentElement.classList.remove('dark'); localStorage.setItem('mentoring_darkMode', 'false'); }
+            }, [darkMode]);
+
+            useEffect(() => {
+                const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+                    if (currentUser) {
+                        getDoc(doc(db, 'admins', currentUser.uid)).then((docSnap) => {
+                            if (docSnap.exists() && (docSnap.data().allowedPortals || []).includes('mentoring_portal')) {
+                                setUser(currentUser); setIsAuthorized(true);
+                            } else { signOut(auth); setUser(null); setIsAuthorized(false); }
+                            setLoading(false);
+                        });
+                    } else { setUser(null); setIsAuthorized(false); setLoading(false); }
+                });
+                return () => unsubscribe();
+            }, []);
+
+            if (loading) return <div className="flex h-screen items-center justify-center bg-slate-100 dark:bg-slate-900"><Loader2 className="animate-spin text-primary-600" size={32}/></div>;
+            if (!user || !isAuthorized) return <MentoringLogin onLoginSuccess={setUser} />;
+
+            const tabs = [
+                { id: 'astp_schooling', name: 'ASTP Schooling', icon: FileText },
+                { id: 'calendar', name: 'Calendar of Schedules', icon: Calendar },
+                { id: 'mentors', name: 'Mentors & Venues', icon: Users },
+                { id: 'clock_records', name: 'Clock Records', icon: Clock },
+                { id: 'schooling_assignment', name: 'Schooling Assignment', icon: MapPin },
+                { id: 'schooling_attendance', name: 'Schooling Attendance', icon: ClipboardList },
+                { id: 'online_submissions', name: 'Online Submissions', icon: CheckSquare },
+                { id: 'absence_disputes', name: 'Absence Disputes', icon: AlertTriangle },
+                { id: 'extended_schooling', name: 'Submitted Requests', icon: GraduationCap },
+                { id: 'import', name: 'Import Records', icon: Upload }
+            ];
+
+            const filteredGlobalTabs = useMemo(() => {
+                if (!globalSearchQuery || !globalSearchQuery.trim()) return [];
+                const q = globalSearchQuery.toLowerCase();
+                return tabs.filter(t => t.name.toLowerCase().includes(q));
+            }, [globalSearchQuery, tabs]);
+
+            return (
+                <div className="flex h-screen w-full bg-white dark:bg-slate-900 transition-colors">
+                    {/* Mobile Overlay */}
+                    {!isSidebarCollapsed && (
+                        <div className="md:hidden fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm transition-opacity" onClick={() => setIsSidebarCollapsed(true)} />
+                    )}
+
+                    {/* Gmail-Style Sidebar */}
+                    <div className={`fixed inset-y-0 left-0 z-50 md:static ${isSidebarCollapsed ? '-translate-x-full md:translate-x-0 md:w-20' : 'translate-x-0 w-64'} flex-shrink-0 bg-slate-50 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-700 flex flex-col transition-all duration-300`}>
+                        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-200 dark:border-slate-700">
+                            {!isSidebarCollapsed && <div className="font-bold text-lg text-primary-600 dark:text-primary-400 flex items-center gap-2">
+                                <img src="dualtech-logo.png" alt="Dualtech" className="w-8 h-8 object-contain" />
+                                Dualtech
+                            </div>}
+                            {isSidebarCollapsed && <div className="w-full flex justify-center">
+                                <img src="dualtech-logo.png" alt="Dualtech" className="w-8 h-8 object-contain" />
+                            </div>}
+                            <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="hidden md:block p-1.5 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md ml-auto">
+                                <Menu size={20}/>
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto py-4 custom-scrollbar">
+                            <ul className="space-y-1 px-3">
+                                {tabs.map(tab => {
+                                    const Icon = tab.icon;
+                                    const isActive = activeTab === tab.id;
+                                    return (
+                                        <li key={tab.id}>
+                                            <button onClick={() => setActiveTab(tab.id)} title={isSidebarCollapsed ? tab.name : ''}
+                                                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-full text-sm font-medium transition-all ${isActive ? 'bg-primary-100 text-primary-800 dark:bg-primary-900/40 dark:text-primary-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800'}`}>
+                                                <Icon size={18} className={isActive ? 'text-primary-600 dark:text-primary-400' : ''} />
+                                                {!isSidebarCollapsed && <span>{tab.name}</span>}
+                                            </button>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {/* Main Content Area */}
+                    <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-slate-900">
+                        {/* Header */}
+                        <header className="h-16 flex items-center justify-between px-4 md:px-6 border-b border-slate-200 dark:border-slate-700 relative z-30">
+                            <div className="flex items-center flex-1">
+                                <button onClick={() => setIsSidebarCollapsed(false)} className="md:hidden p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full mr-2">
+                                    <Menu size={20} />
+                                </button>
+                                {/* Search Bar - GMail Style */}
+                                <div ref={searchRef} className="max-w-2xl w-full hidden md:flex flex-col relative z-50">
+                                    <div className="flex-1 flex items-center bg-slate-100 dark:bg-slate-800 rounded-full px-4 py-2.5 focus-within:bg-white focus-within:shadow-md focus-within:ring-1 focus-within:ring-slate-300 dark:focus-within:bg-slate-700 dark:focus-within:ring-slate-600 transition-all relative">
+                                        <Search size={20} className="text-slate-400" />
+                                        <input 
+                                            type="text" 
+                                            value={globalSearchQuery}
+                                            onChange={(e) => {
+                                                setGlobalSearchQuery(e.target.value);
+                                                setShowGlobalSearchDropdown(true);
+                                            }}
+                                            onFocus={() => setShowGlobalSearchDropdown(true)}
+                                            placeholder={`Search for a module or function...`} 
+                                            className="w-full bg-transparent border-none outline-none ml-3 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-500" 
+                                        />
+                                        <Filter size={18} className="text-slate-400 cursor-pointer hover:text-slate-600" />
+                                    </div>
+                                    {showGlobalSearchDropdown && globalSearchQuery.trim() !== '' && (
+                                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl overflow-hidden py-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            {filteredGlobalTabs.length > 0 ? (
+                                                filteredGlobalTabs.map(tab => {
+                                                    const Icon = tab.icon;
+                                                    return (
+                                                        <button 
+                                                            key={tab.id}
+                                                            onClick={() => {
+                                                                setActiveTab(tab.id);
+                                                                setGlobalSearchQuery('');
+                                                                setShowGlobalSearchDropdown(false);
+                                                            }}
+                                                            className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-3 transition-colors"
+                                                        >
+                                                            <div className="p-2 bg-slate-100 dark:bg-slate-900 rounded-lg text-slate-500 dark:text-slate-400">
+                                                                <Icon size={16} />
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="text-sm font-bold text-slate-800 dark:text-slate-200">{tab.name}</div>
+                                                                <div className="text-xs text-slate-500 dark:text-slate-400">Navigate to {tab.name}</div>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className="px-4 py-6 text-center text-slate-500 dark:text-slate-400 text-sm">
+                                                    No functions found matching "{globalSearchQuery}"
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 md:gap-4 pl-4">
+                                <button onClick={() => setDarkMode(!darkMode)} className="text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 p-2 rounded-full transition-colors">
+                                    {darkMode ? <Sun size={20}/> : <Moon size={20}/>}
+                                </button>
+                                {isAuthorized && user && <MessageBubble userType="admin" user={user} />}
+                                <button className="text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 p-2 rounded-full transition-colors">
+                                    <Settings size={20}/>
+                                </button>
+                                <button onClick={() => setShowProfileModal(true)} className="w-8 h-8 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold text-sm ml-2 cursor-pointer border-2 border-transparent hover:border-slate-300 shadow-md">
+                                    A
+                                </button>
+                            </div>
+                        </header>
+
+                        {/* Split Pane Container */}
+                        <main className="flex-1 p-4 md:p-6 overflow-hidden split-pane bg-slate-50/30 dark:bg-slate-900/50">
+                            {activeTab === 'astp_schooling' && <AstpSchoolingDashboard />}
+                            {activeTab === 'calendar' && <CalendarTab />}
+                            {activeTab === 'mentors' && <MentorsVenuesTab />}
+                            {activeTab === 'clock_records' && <MentorClockRecordsTab />}
+                            {activeTab === 'schooling_assignment' && <SchoolingAssignmentTab />}
+                            {activeTab === 'schooling_attendance' && <SchoolingAttendanceTab />}
+                            {activeTab === 'online_submissions' && <OnlineSchoolingSubmissionsTab />}
+                            {activeTab === 'extended_schooling' && <SubmittedRequestsTab />}
+                            {activeTab === 'import' && <ImportRecordsTab />}
+                            {activeTab === 'absence_disputes' && <AbsenceDisputesTab />}
+                            {activeTab !== 'calendar' && activeTab !== 'mentors' && activeTab !== 'astp_schooling' && activeTab !== 'clock_records' && activeTab !== 'schooling_assignment' && activeTab !== 'online_submissions' && activeTab !== 'schooling_attendance' && activeTab !== 'extended_schooling' && activeTab !== 'import' && activeTab !== 'absence_disputes' && <PlaceholderTab name={tabs.find(t=>t.id===activeTab)?.name} />}
+                            <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
+                          </main>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

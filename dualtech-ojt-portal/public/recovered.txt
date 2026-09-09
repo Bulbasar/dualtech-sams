@@ -1,0 +1,49 @@
+Created At: 2026-08-06T14:30:21Z
+Completed At: 2026-08-06T14:30:22Z
+File Path: `file:///c:/Users/rober/dualtech-ojt-portal/public/mentoring.html`
+Total Lines: 6163
+Total Bytes: 452765
+Showing lines 6110 to 6150
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+6110:                                                             </div>
+6111:                                                         </button>
+6112:                                                     );
+6113:                                                 })
+6114:                                             ) : (
+6115:                                                 <div className="px-4 py-6 text-center text-slate-500 dark:text-slate-400 text-sm">
+6116:                                                     No functions found matching "{globalSearchQuery}"
+6117:                                                 </div>
+6118:                                             )}
+6119:                                         </div>
+6120:                                     )}
+6121:                                 </div>
+6122:                             </div>
+6123: 
+6124:                             <div className="flex items-center gap-2 md:gap-4 pl-4">
+6125:                                 <button onClick={() => setDarkMode(!darkMode)} className="text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 p-2 rounded-full transition-colors">
+6126:                                     {darkMode ? <Sun size={20}/> : <Moon size={20}/>}
+6127:                                 </button>
+6128:                                 {isAuthorized && user && <MessageBubble userType="admin" user={user} />}
+6129:                                 <button className="text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 p-2 rounded-full transition-colors">
+6130:                                     <Settings size={20}/>
+6131:                                 </button>
+6132:                                 <button onClick={() => setShowProfileModal(true)} className="w-8 h-8 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold text-sm ml-2 cursor-pointer border-2 border-transparent hover:border-slate-300 shadow-md">
+6133:                                     A
+6134:                                 </button>
+6135:                             </div>
+6136:                         </header>
+6137: 
+6138:                         {/* Split Pane Container */}
+6139:                         <main className="flex-1 p-4 md:p-6 overflow-hidden split-pane bg-slate-50/30 dark:bg-slate-900/50">
+6140:                             {activeTab === 'astp_schooling' && <AstpSchoolingDashboard />}
+6141:                             {activeTab === 'calendar' && <CalendarTab />}
+6142:                             {activeTab === 'mentors' && <MentorsVenuesTab />}
+6143:                             {activeTab === 'clock_records' && <MentorClockRecordsTab />}
+6144:                             {activeTab === 'schooling_assignment' && <SchoolingAssignmentTab setActiveTab={setActiveTab} setAttendanceSearchQuery={setAttendanceSearchQuery} />}
+6145:                             {activeTab === 'schooling_attendance' && <SchoolingAttendanceTab attendanceSearchQuery={attendanceSearchQuery} setAttendanceSearchQuery={setAttendanceSearchQuery} />}
+6146:                             {activeTab === 'online_submissions' && <OnlineSchoolingSubmissionsTab />}
+6147:                             {activeTab === 'extended_schooling' && <SubmittedRequestsTab />}
+6148:                             {activeTab === 'import' && <ImportRecordsTab />}
+6149:                             {activeTab === 'absence_disputes' && <AbsenceDisputesTab />}
+6150:                             {activeTab !== 'calendar' && activeTab !== 'mentors' && activeTab !== 'astp_schooling' && activeTab !== 'clock_records' && activeTab !== 'schooling_assignment' && activeTab !== 'online_submissions' && activeTab !== 'schooling_attendance' && activeTab !== 'extended_schooling' && activeTab !== 'import' && activeTab !== 'absence_disputes' && <PlaceholderTab name={tabs.find(t=>t.id===activeTab)?.name} />}
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.

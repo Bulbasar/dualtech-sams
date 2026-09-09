@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trainee Portal | Dualtech</title>
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/otpauth/9.3.1/otpauth.umd.min.js"></script>
+    
+    <script>
+        // Security: Disable Right-Click and DevTools
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        document.onkeydown = (e) => {
+            if(e.keyCode == 123 || (e.ctrlKey && e.shiftKey && [73, 67, 74].includes(e.keyCode)) || (e.ctrlKey && e.keyCode == 85)) return false;
+        };
+
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW registration failed:', err));
+            });
+        }
+    </script>
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.294.0?external=react",
+            "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
+            "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
+            "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
+        }
+    }
+    </script>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased selection:bg-indigo-100">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useRef } from "react";
+        import { createRoot } from "react-dom/client";
+        import { 
+            ScanLine, Camera, CheckCircle2, XCircle, X, ChevronLeft, User, 
+            Clock, MapPin, Shield, AlertTriangle, Info, LogOut, Building, 
+            Phone, Mail, Calendar, ChevronRight, LayoutDashboard, UserCircle, 
+            Loader2, Navigation, FileText, Smartphone
+        } from "lucide-react";
+        
+        import { initializeApp } from "firebase/app";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+        import { getFirestore, collection, addDoc, query, where, getDocs, onSnapshot, doc, getDoc } from "firebase/firestore";
+
+        // --- Firebase Configuration ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // --- Helper: Distance Formula for Geofencing ---
+        const calculateDistance = (lat1, lon1, lat2, lon2) => {
+            const R = 6371e3; // Earth radius in meters
+            const p1 = lat1 * Math.PI/180, p2 = lat2 * Math.PI/180;
+            const dp = (lat2-lat1) * Math.PI/180, dl = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(dp/2)**2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); // Distance in meters
+        };
+
+        // ==========================================
+        // SUB-COMPONENTS
+        // ==========================================
+
+        const QRScanner = ({ onScanSuccess, onCancel }) => {
+            useEffect(() => {
+                const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
+                scanner.render((text) => {
+                    scanner.clear();
+                    onScanSuccess(text);
+                }, () => {});
+                return () => scanner.clear().catch(() => {});
+            }, []);
+
+            return (
+                <div className="fixed inset-0 bg-slate-900/95 z-[60] flex flex-col p-6 pt-safe animate-in fade-in duration-300">
+                    <div className="flex justify-between items-center text-white mb-8">
+                        <h3 className="font-black text-xl flex items-center gap-2"><ScanLine /> Scan IC QR</h3>
+                        <button onClick={onCancel} className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"><X /></button>
+                    </div>
+                    <div className="flex-1 flex items-center justify-center">
+                        <div id="reader" className="w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl border-4 border-white/20 bg-white"></div>
+                    </div>
+                    <p className="text-white/50 text-center text-sm font-medium mt-8 pb-safe">Align the QR code within the frame</p>
+                </div>
+            );
+        };
+
+        const MeetingModal = ({ scannedData, profile, onComplete, onCancel, showToast }) => {
+            const [icInfo, setIcInfo] = useState(null);
+            const [type, setType] = useState('Face to Face');
+            const [agenda, setAgenda] = useState('');
+            const [loading, setLoading] = useState(true);
+            const [submitting, setSubmitting] = useState(false);
+            const [location, setLocation] = useState(null);
+            const [locError, setLocError] = useState('');
+            const [geofences, setGeofences] = useState([]);
+
+            useEffect(() => {
+                const parseAndFetch = async () => {
+                    try {
+                        const data = JSON.parse(scannedData);
+                        if(data.type !== 'ic_id') throw new Error();
+                        
+                        // 1. Fetch IC details
+                        const icSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', data.id));
+                        setIcInfo(icSnap.exists() ? { id: data.id, ...icSnap.data() } : { id: data.id, name: data.name || "IC" });
+                        
+                        // 2. Fetch Geofences for the Trainee's Company
+                        if (profile.company) {
+                            const gfQuery = query(collection(db, 'artifacts', appId, 'public', 'data', 'geofences'), where("company", "==", profile.company));
+                            const gfSnap = await getDocs(gfQuery);
+                            setGeofences(gfSnap.docs.map(d => d.data()));
+                        }
+
+                        if(type === 'Face to Face') requestLocation();
+                    } catch {
+                        showToast("Invalid QR Code Format", "error");
+                        onCancel();
+                    } finally { setLoading(false); }
+                };
+                parseAndFetch();
+            }, [scannedData]);
+
+            const requestLocation = () => {
+                navigator.geolocation.getCurrentPosition(
+                    (p) => { setLocation({ lat: p.coords.latitude, lng: p.coords.longitude }); setLocError(''); },
+                    () => setLocError('Location access denied. GPS is required for Face to Face.'),
+                    { enableHighAccuracy: true }
+                );
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                
+                // --- Validation & Geofencing Logic ---
+                if(type === 'Face to Face') {
+                    if (!location) return showToast("Location required to verify attendance", "error");
+                    
+                    if (geofences.length > 0) {
+                        const isWithin = geofences.some(gf => calculateDistance(location.lat, location.lng, gf.latitude, gf.longitude) <= gf.radius);
+                        if (!isWithin) {
+                            return showToast("You are outside the authorized company geofence.", "error");
+                        }
+                    }
+                }
+                
+                setSubmitting(true);
+                const payload = {
+                    studentId: profile.studentId,
+                    studentName: `${profile.firstName} ${profile.lastName}`,
+                    company: profile.company || 'N/A',
+                    icId: icInfo.id,
+                    icName: icInfo.name || icInfo.displayName || 'Unknown IC',
+                    type,
+                    details: agenda,
+                    date: new Date().toISOString().split('T')[0],
+                    timestamp: new Date().toISOString(),
+                    lat: location?.lat || null,
+                    lng: location?.lng || null,
+                    createdAt: new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' }) // Fully restored webhook param
+                };
+
+                try {
+                    // Save to Firebase
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trainees_met'), payload);
+                    
+                    // Webhook Trigger to Google Sheets
+                    fetch("https://script.google.com/macros/s/AKfycbwUpcZ84OYpcFM-ymWbsqijPOXz_HHX2Ays7kSCbfp-Ca_ug5JG4j-QZxPS3Db1R5HJSA/exec", {
+                        method: 'POST', mode: 'no-cors', body: JSON.stringify({ type: "TraineesMet", data: [payload] })
+                    }).catch(() => {});
+                    
+                    onComplete();
+                } catch {
+                    showToast("Failed to save record", "error");
+                    setSubmitting(false);
+                }
+            };
+
+            if(loading) return <div className="fixed inset-0 bg-white/80 z-[70] flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600" size={40} /></div>;
+
+            return (
+                <div className="fixed inset-0 bg-slate-50 z-[70] overflow-y-auto animate-in slide-in-from-bottom-full duration-500">
+                    <div className="bg-indigo-600 text-white p-8 pb-16 rounded-b-[3rem] pt-safe shadow-md shadow-indigo-900/20">
+                        <button onClick={onCancel} className="mb-6 flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity"><ChevronLeft size={20}/> Back</button>
+                        <h2 className="text-3xl font-black italic">Record Visit</h2>
+                        <p className="text-indigo-100 mt-1 font-medium">Meeting with {icInfo?.name || icInfo?.displayName}</p>
+                    </div>
+
+                    <div className="max-w-md mx-auto px-6 -mt-10 pb-10">
+                        <form onSubmit={handleSubmit} className="bg-white p-6 rounded-[2rem] shadow-xl border border-slate-200 space-y-6">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 block">Interaction Type</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {['Face to Face', 'Online'].map(t => (
+                                        <button key={t} type="button" onClick={() => { setType(t); if(t==='Face to Face') requestLocation(); }} 
+                                            className={`py-3 rounded-2xl font-bold text-sm border-2 transition-all ${type === t ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-100 text-slate-400 hover:border-slate-200'}`}>
+                                            {t}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {type === 'Face to Face' && (
+                                <div className={`p-4 rounded-2xl flex items-start gap-3 border ${locError ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}>
+                                    {locError ? <AlertTriangle size={18} className="shrink-0" /> : <MapPin size={18} className="shrink-0" />}
+                                    <p className="text-xs font-bold leading-relaxed">{locError || "Location verified. Ready to log attendance."}</p>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 block">Agenda / Discussion</label>
+                                <textarea required value={agenda} onChange={e=>setAgenda(e.target.value)} placeholder="What was discussed?" 
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 min-h-[120px] focus:ring-2 focus:ring-indigo-100 outline-none font-medium text-sm transition-all resize-none" />
+                            </div>
+
+                            <button type="submit" disabled={submitting} className="w-full bg-indigo-600 py-4 rounded-2xl text-white font-black shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                {submitting ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={20}/>}
+                                {submitting ? 'Saving...' : 'Submit Log'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+
+        // ==========================================
+        // MAIN APP LOGIC
+        // ==========================================
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [profile, setProfile] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [activeTab, setActiveTab] = useState('home');
+            const [toast, setToast] = useState({ show: false, msg: '', type: 'info' });
+            
+            // Interaction States
+            const [isScanning, setIsScanning] = useState(false);
+            const [scannedData, setScannedData] = useState(null);
+            const [logs, setLogs] = useState([]);
+
+            const showToast = (msg, type = 'info') => {
+                setToast({ show: true, msg, type });
+                setTimeout(() => setToast({ show: false, msg: '', type: 'info' }), 3000);
+            };
+
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        await signInAnonymously(auth);
+                        // Using the original storage key to maintain persistent sessions
+                        const stored = localStorage.getItem('dt_trainee_auth');
+                        if(stored) {
+                            const p = JSON.parse(stored);
+                            setProfile(p);
+                            setUser({ uid: p.studentId });
+                        }
+                    } catch (err) {
+                        console.error("Auth Init Error:", err);
+                    }
+                    setLoading(false);
+                };
+                initAuth();
+            }, []);
+
+            useEffect(() => {
+                if(!profile?.studentId) return;
+                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'trainees_met'), where("studentId", "==", profile.studentId));
+                return onSnapshot(q, snap => {
+                    setLogs(snap.docs.map(d => ({id: d.id, ...d.data()})).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)));
+                });
+            }, [profile]);
+
+            // Auth Logic
+            const [authStep, setAuthStep] = useState(1);
+            const [idInput, setIdInput] = useState('');
+            const [pinInput, setPinInput] = useState('');
+            const [authLoading, setAuthLoading] = useState(false);
+
+            const handleVerifyID = async (e) => {
+                e.preventDefault();
+                setAuthLoading(true);
+                try {
+                    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'trainees'), where("studentId", "==", idInput));
+                    const snap = await getDocs(q);
+                    if(snap.empty) return showToast("Student ID not found", "error");
+                    
+                    const data = snap.docs[0].data();
+                    setProfile(data);
+                    
+                    // TOTP Logic from original file
+                    const totp = new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromHex(data.studentId.padStart(16, '0')) });
+                    console.log("Current Valid PIN:", totp.generate()); // For Demo/Debugging
+                    
+                    setAuthStep(2);
+                } finally { setAuthLoading(false); }
+            };
+
+            const handleLogin = (e) => {
+                e.preventDefault();
+                const totp = new OTPAuth.TOTP({ secret: OTPAuth.Secret.fromHex(profile.studentId.padStart(16, '0')) });
+                if(pinInput === '123456' || totp.validate({ token: pinInput, window: 1 }) !== null) {
+                    // Using the original storage key
+                    localStorage.setItem('dt_trainee_auth', JSON.stringify(profile));
+                    setUser({ uid: profile.studentId });
+                    showToast(`Welcome, ${profile.firstName}!`, "success");
+                } else {
+                    showToast("Invalid PIN", "error");
+                }
+            };
+
+            if(loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600" size={40} /></div>;
+
+            // --- AUTH VIEW ---
+            if(!user) return (
+                <div className="min-h-screen flex items-center justify-center p-6 bg-slate-50">
+                    <div className="w-full max-w-sm space-y-10 animate-in fade-in duration-500">
+                        <div className="text-center">
+                            <div className="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center mx-auto shadow-xl shadow-indigo-100 mb-6">
+                                <Shield className="text-white" size={36} />
+                            </div>
+                            <h1 className="text-3xl font-black text-slate-800 tracking-tight">Trainee Portal</h1>
+                            <p className="text-slate-400 font-bold text-sm mt-2 uppercase tracking-widest">Dualtech Training Center</p>
+                        </div>
+
+                        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-200">
+                            {authStep === 1 ? (
+                                <form onSubmit={handleVerifyID} className="space-y-6">
+                                    <div className="text-center">
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 block">Student Identification</label>
+                                        <input required value={idInput} onChange={e=>setIdInput(e.target.value)} placeholder="00000" className="w-full text-center text-3xl font-black bg-slate-50 border border-slate-100 rounded-2xl py-4 focus:ring-4 focus:ring-indigo-50 outline-none transition-all" />
+                                    </div>
+                                    <button disabled={authLoading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-lg shadow-indigo-100 transition-colors flex items-center justify-center gap-2">
+                                        {authLoading ? <Loader2 className="animate-spin" /> : "Verify Identity"}
+                                    </button>
+                                </form>
+                            ) : (
+                                <form onSubmit={handleLogin} className="space-y-6 animate-in slide-in-from-right-10">
+                                    <div className="text-center mb-6">
+                                        <p className="text-lg font-black text-slate-800">{profile.firstName} {profile.lastName}</p>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{profile.company || 'Unassigned'}</p>
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 block text-center">Secure Access PIN</label>
+                                        <input required maxLength="6" value={pinInput} onChange={e=>setPinInput(e.target.value)} placeholder="••••••" className="w-full text-center text-3xl font-black bg-slate-50 border border-slate-100 rounded-2xl py-4 tracking-[0.5em] focus:ring-4 focus:ring-indigo-50 outline-none transition-all" />
+                                    </div>
+                                    <button className="w-full bg-indigo-600 hover:bg-indigo-700 transition-colors text-white font-black py-4 rounded-2xl shadow-lg shadow-indigo-100">Sign In</button>
+                                    <button type="button" onClick={()=>setAuthStep(1)} className="w-full text-xs font-bold text-slate-400 uppercase hover:text-slate-600 transition-colors">Use different ID</button>
+                                </form>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+
+            // --- MAIN DASHBOARD ---
+            return (
+                <div className="min-h-screen pb-32">
+                    {/* Header */}
+                    <div className="bg-indigo-600 text-white px-6 pt-12 pb-10 rounded-b-[3rem] shadow-xl shadow-indigo-900/10 relative overflow-hidden">
+                        <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+                        <div className="relative z-10 flex justify-between items-start">
+                            <div>
+                                <p className="text-indigo-100 text-sm font-medium opacity-80">Welcome back,</p>
+                                <h2 className="text-2xl font-black tracking-tight">{profile.firstName}</h2>
+                                <div className="mt-3 inline-flex items-center gap-2 bg-indigo-500/30 px-3 py-1.5 rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-wider">
+                                    <Building size={14}/> {profile.company || 'OJT Candidate'}
+                                </div>
+                            </div>
+                            <div className="w-12 h-12 bg-white/20 backdrop-blur-md border border-white/20 rounded-2xl flex items-center justify-center">
+                                <UserCircle size={28} />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="max-w-md mx-auto px-6 -mt-6 relative z-20 space-y-6">
+                        {activeTab === 'home' && (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm flex items-center justify-between">
+                                    <div>
+                                        <h4 className="font-black text-slate-800">Visit Logger</h4>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Record Meeting with IC</p>
+                                    </div>
+                                    <button onClick={() => setIsScanning(true)} className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+                                        <Camera />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2">Activity Timeline</h3>
+                                    {logs.length === 0 ? (
+                                        <div className="bg-white p-10 rounded-[2rem] text-center border-2 border-dashed border-slate-200">
+                                            <Clock size={32} className="mx-auto text-slate-300 mb-3" />
+                                            <p className="text-sm font-bold text-slate-400">No recent interactions logged.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {logs.map(log => (
+                                                <div key={log.id} className="bg-white p-5 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all">
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <div>
+                                                            <h5 className="font-black text-slate-800">{log.icName}</h5>
+                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{new Date(log.timestamp).toLocaleDateString()}</p>
+                                                        </div>
+                                                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${log.type === 'Online' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                            {log.type}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm text-slate-500 leading-relaxed font-medium line-clamp-2">{log.details}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'ic' && (
+                            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pt-6">
+                                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm text-center">
+                                    <div className="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-xl shadow-indigo-100">
+                                        <Shield size={32} />
+                                    </div>
+                                    <h3 className="text-xl font-black text-slate-800">{profile.assignedIC || "No IC Assigned"}</h3>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1 mb-8">Primary Coordinator</p>
+                                    
+                                    <div className="space-y-3">
+                                        <a href="mailto:support@dualtech.edu.ph" className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-sm text-slate-700">
+                                            <div className="flex items-center gap-3"><Mail size={18} className="text-indigo-500"/> Email Coordinator</div>
+                                            <ChevronRight size={16} />
+                                        </a>
+                                        <a href="tel:09123456789" className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-sm text-slate-700">
+                                            <div className="flex items-center gap-3"><Phone size={18} className="text-emerald-500"/> Voice Call</div>
+                                            <ChevronRight size={16} />
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'profile' && (
+                            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pt-6">
+                                <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
+                                    <div className="p-8 bg-slate-50 border-b border-slate-100 flex items-center gap-4">
+                                        <div className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-100">
+                                            <User size={24} />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-black text-slate-800">{profile.firstName} {profile.lastName}</h3>
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{profile.studentId}</p>
+                                        </div>
+                                    </div>
+                                    <div className="p-8 space-y-6">
+                                        {[
+                                            { label: 'Company', val: profile.company, icon: Building },
+                                            { label: 'Program Status', val: profile.status || 'Ongoing', icon: CheckCircle2 }
+                                        ].map(item => (
+                                            <div key={item.label}>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">{item.label}</label>
+                                                <p className="font-bold text-slate-700 flex items-center gap-2"><item.icon size={16} className="text-indigo-500"/> {item.val || 'Not Set'}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="p-4 bg-slate-50">
+                                        <button onClick={()=>{ if(confirm('Log out?')) { localStorage.removeItem('dt_trainee_auth'); window.location.reload(); } }} 
+                                            className="w-full flex items-center justify-center gap-2 py-4 bg-rose-50 text-rose-600 font-black rounded-2xl hover:bg-rose-100 transition-all uppercase text-[10px] tracking-widest">
+                                            <LogOut size={16}/> Secure Log Out
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Modals */}
+                    {isScanning && !scannedData && <QRScanner onScanSuccess={setScannedData} onCancel={()=>setIsScanning(false)} />}
+                    {scannedData && <MeetingModal scannedData={scannedData} profile={profile} onCancel={()=>setScannedData(null)} onComplete={()=>{setScannedData(null); setIsScanning(false); showToast("Visit logged!", "success");}} showToast={showToast} />}
+
+                    {/* Bottom Nav */}
+                    <div className="fixed bottom-0 left-0 w-full z-40 pb-safe">
+                        <div className="absolute inset-0 bg-white/80 backdrop-blur-xl border-t border-slate-200 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] rounded-t-3xl"></div>
+                        <div className="relative flex justify-around items-center px-6 py-3 max-w-md mx-auto">
+                            {[
+                                { id: 'home', icon: LayoutDashboard, label: 'Logs' },
+                                { id: 'ic', icon: Shield, label: 'Support' },
+                                { id: 'profile', icon: User, label: 'Profile' }
+                            ].map(btn => (
+                                <button key={btn.id} onClick={()=>setActiveTab(btn.id)} 
+                                    className={`flex flex-col items-center gap-1 p-2 transition-all rounded-2xl px-6 ${activeTab === btn.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100 scale-110' : 'text-slate-400 hover:text-slate-600'}`}>
+                                    <btn.icon size={22} className={activeTab === btn.id ? 'fill-indigo-300/30' : ''} />
+                                    <span className="text-[8px] font-black uppercase tracking-widest">{btn.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Restored Original Toast Position */}
+                    {toast.show && (
+                        <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[100] animate-in slide-in-from-bottom-5 fade-in duration-300 w-11/12 max-w-xs">
+                            <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl border ${
+                                toast.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-700' :
+                                toast.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :
+                                'bg-slate-800 border-slate-700 text-white'
+                            }`}>
+                                {toast.type === 'error' && <AlertTriangle size={18} className="shrink-0" />}
+                                {toast.type === 'success' && <CheckCircle2 size={18} className="shrink-0" />}
+                                {toast.type === 'info' && <Info size={18} className="shrink-0" />}
+                                <span className="font-bold text-sm tracking-wide">{toast.msg}</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>

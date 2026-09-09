@@ -1,0 +1,201 @@
+function OverviewTab({ lfData, showMessage }) {
+      const [overviewData, setOverviewData] = useState({
+        all: { active: 0, preBstp: 0, postBstp: 0, other: 0, total: 0 },
+        my: { active: 0, preBstp: 0, postBstp: 0, other: 0, total: 0 }
+      });
+      const [loading, setLoading] = useState(true);
+      const [loadingProgress, setLoadingProgress] = useState(0);
+      const [loadingMessage, setLoadingMessage] = useState("");
+
+      const fetchOverview = async (forceRefresh = false) => {
+        if (!forceRefresh) {
+          const cached = localStorage.getItem(`lfportal_overview_cache_${lfData.initials}`);
+          if (cached) {
+            try {
+              setOverviewData(JSON.parse(cached));
+              setLoading(false);
+              return;
+            } catch (e) {
+              console.warn("Invalid overview cache", e);
+            }
+          }
+        }
+
+        setLoading(true);
+        try {
+          setLoadingProgress(10);
+          setLoadingMessage("Connecting to database...");
+
+          // OPTIMIZATION: Only fetch BSTP trainees instead of the entire collection
+          const traineesRef = collection(db, "artifacts", APP_ID, "public", "data", "trainees");
+          const q = query(traineesRef, where("Level", "==", "BSTP"));
+
+          setLoadingProgress(30);
+          setLoadingMessage("Fetching BSTP trainees from Firestore...");
+          const snapshot = await getDocs(q);
+
+          setLoadingProgress(70);
+          setLoadingMessage(`Processing ${snapshot.size} records...`);
+
+          let allActive = 0, allPre = 0, allPost = 0, allOther = 0;
+          let allActiveReg = 0, allPreReg = 0, allPostReg = 0, allOtherReg = 0;
+          let myActive = 0, myPre = 0, myPost = 0, myOther = 0;
+          let myActiveReg = 0, myPreReg = 0, myPostReg = 0, myOtherReg = 0;
+
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            const level = String(data.level || data.Level || "").trim().toLowerCase();
+
+            // Extra safety check in case case-insensitive level varies
+            if (level !== "bstp") {
+              return;
+            }
+
+            // Get status
+            let rawStatus = String(data.status || data.Status || data.currentbstpStatus || "").trim().toLowerCase();
+            let status = "Other";
+            if (rawStatus === "active") status = "Active";
+            else if (rawStatus === "pre-bstp") status = "Pre-BSTP";
+            else if (rawStatus === "post-bstp") status = "Post-BSTP";
+
+            const isReg = !!data.isRegistered;
+
+            // Check adviser assignment
+            const adviser = (data.adviser || data.Adviser || "").toLowerCase().trim();
+            const isMy = lfData.initials && adviser.includes(lfData.initials.toLowerCase().trim());
+
+            if (status === "Active") {
+              allActive++;
+              if (isReg) allActiveReg++;
+              if (isMy) { myActive++; if (isReg) myActiveReg++; }
+            } else if (status === "Pre-BSTP") {
+              allPre++;
+              if (isReg) allPreReg++;
+              if (isMy) { myPre++; if (isReg) myPreReg++; }
+            } else if (status === "Post-BSTP") {
+              allPost++;
+              if (isReg) allPostReg++;
+              if (isMy) { myPost++; if (isReg) myPostReg++; }
+            } else {
+              allOther++;
+              if (isReg) allOtherReg++;
+              if (isMy) { myOther++; if (isReg) myOtherReg++; }
+            }
+          });
+
+          setLoadingProgress(90);
+          setLoadingMessage("Finalizing data...");
+
+          const newData = {
+            all: {
+              active: allActive, activeReg: allActiveReg,
+              preBstp: allPre, preBstpReg: allPreReg,
+              postBstp: allPost, postBstpReg: allPostReg,
+              other: allOther, otherReg: allOtherReg,
+              total: allActive + allPre + allPost + allOther
+            },
+            my: {
+              active: myActive, activeReg: myActiveReg,
+              preBstp: myPre, preBstpReg: myPreReg,
+              postBstp: myPost, postBstpReg: myPostReg,
+              other: myOther, otherReg: myOtherReg,
+              total: myActive + myPre + myPost + myOther
+            }
+          };
+
+          setOverviewData(newData);
+          localStorage.setItem(`lfportal_overview_cache_${lfData.initials}`, JSON.stringify(newData));
+
+          setLoadingProgress(100);
+          setLoadingMessage("Complete");
+        } catch (error) {
+          console.error("Error fetching overview:", error);
+          showMessage("Failed to load overview data", "error");
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      useEffect(() => {
+        fetchOverview(true);
+      }, [lfData.initials, showMessage]);
+
+      const renderBar = (data) => {
+        if (data.total === 0) return <div className="text-slate-500 italic py-2">No data available</div>;
+
+        const pActive = (data.active / data.total) * 100;
+        const pPre = (data.preBstp / data.total) * 100;
+        const pPost = (data.postBstp / data.total) * 100;
+        const pOther = (data.other / data.total) * 100;
+
+        const fmtPct = (pct) => pct % 1 === 0 ? pct.toFixed(0) : pct.toFixed(1);
+
+        const activeRegPct = data.active > 0 ? fmtPct((data.activeReg / data.active) * 100) : 0;
+        const preRegPct = data.preBstp > 0 ? fmtPct((data.preBstpReg / data.preBstp) * 100) : 0;
+        const postRegPct = data.postBstp > 0 ? fmtPct((data.postBstpReg / data.postBstp) * 100) : 0;
+        const otherRegPct = data.other > 0 ? fmtPct((data.otherReg / data.other) * 100) : 0;
+
+        return (
+          <div className="w-full">
+            <div className="flex w-full h-8 rounded-full overflow-hidden mb-3 shadow-inner bg-slate-100 dark:bg-slate-700">
+              {pActive > 0 && <div style={{ width: `${pActive}%` }} className="bg-blue-500 transition-all duration-500 flex items-center justify-center text-xs font-bold text-white overflow-hidden whitespace-nowrap" title={`Active: ${data.active} (Total: ${fmtPct(pActive)}%, Reg: ${activeRegPct}%)`}>{pActive > 5 ? `${data.active} (${fmtPct(pActive)}%)` : ''}</div>}
+              {pPre > 0 && <div style={{ width: `${pPre}%` }} className="bg-amber-500 transition-all duration-500 flex items-center justify-center text-xs font-bold text-white overflow-hidden whitespace-nowrap" title={`Pre-BSTP: ${data.preBstp} (Total: ${fmtPct(pPre)}%, Reg: ${preRegPct}%)`}>{pPre > 5 ? `${data.preBstp} (${fmtPct(pPre)}%)` : ''}</div>}
+              {pPost > 0 && <div style={{ width: `${pPost}%` }} className="bg-emerald-500 transition-all duration-500 flex items-center justify-center text-xs font-bold text-white overflow-hidden whitespace-nowrap" title={`Post-BSTP: ${data.postBstp} (Total: ${fmtPct(pPost)}%, Reg: ${postRegPct}%)`}>{pPost > 5 ? `${data.postBstp} (${fmtPct(pPost)}%)` : ''}</div>}
+              {pOther > 0 && <div style={{ width: `${pOther}%` }} className="bg-slate-400 transition-all duration-500 flex items-center justify-center text-xs font-bold text-white overflow-hidden whitespace-nowrap" title={`Other: ${data.other} (Total: ${fmtPct(pOther)}%, Reg: ${otherRegPct}%)`}>{pOther > 5 ? `${data.other} (${fmtPct(pOther)}%)` : ''}</div>}
+            </div>
+            <div className="flex flex-wrap gap-4 text-sm mt-4">
+              {pActive > 0 && <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-500"></div><span className="font-medium text-slate-700 dark:text-slate-300">Active: {fmtPct(pActive)}% (Total: {data.active}, Reg: {activeRegPct}%)</span></div>}
+              {pPre > 0 && <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-amber-500"></div><span className="font-medium text-slate-700 dark:text-slate-300">Pre-BSTP: {fmtPct(pPre)}% (Total: {data.preBstp}, Reg: {preRegPct}%)</span></div>}
+              {pPost > 0 && <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-500"></div><span className="font-medium text-slate-700 dark:text-slate-300">Post-BSTP: {fmtPct(pPost)}% (Total: {data.postBstp}, Reg: {postRegPct}%)</span></div>}
+              {pOther > 0 && <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-slate-400"></div><span className="font-medium text-slate-700 dark:text-slate-300">Other: {fmtPct(pOther)}% (Total: {data.other}, Reg: {otherRegPct}%)</span></div>}
+            </div>
+          </div>
+        );
+      };
+
+      return (
+        <div className="space-y-6">
+          {loading && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-blue-200 dark:border-blue-800 p-4 transition-all duration-300">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{loadingMessage}</span>
+                </div>
+                <span className="text-sm font-bold text-blue-500">{loadingProgress}%</span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="bg-blue-500 h-full transition-all duration-300 ease-out"
+                  style={{ width: `${loadingProgress}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-white">System Overview</h2>
+              <button
+                onClick={() => fetchOverview(true)}
+                disabled={loading}
+                className="text-xs text-blue-500 hover:underline flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Lucide.RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+                Refresh Data
+              </button>
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Unified overview of all {overviewData.all.total} BSTP trainees across the system.</p>
+            {renderBar(overviewData.all)}
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-2">My Trainees Overview</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Overview of {overviewData.my.total} trainees assigned to your advisory class ({lfData.initials}).</p>
+            {renderBar(overviewData.my)}
+          </div>
+        </div>
+      );
+    }
+
+    

@@ -1,0 +1,374 @@
+                const SubmittedRequestsTab = () => {
+            const [subTab, setSubTab] = useState('extended'); // 'extended' | 'credits'
+            const [requests, setRequests] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            // --- Schooling Credit Application states ---
+            const [creditApps, setCreditApps] = useState([]);
+            const [loadingCredits, setLoadingCredits] = useState(true);
+            const [creditFilter, setCreditFilter] = useState('Pending'); // 'Pending' | 'Approved' | 'Rejected' | 'All'
+            const [extendedFilter, setExtendedFilter] = useState('Pending'); // 'Pending' | 'Approved' | 'Rejected' | 'All'
+
+            // --- Bulk action states ---
+            const [selectedExtended, setSelectedExtended] = useState(new Set());
+            const [selectedCredits, setSelectedCredits] = useState(new Set());
+
+            // --- Sorting states ---
+            const [extendedSort, setExtendedSort] = useState({ key: 'timestamp', direction: 'desc' });
+            const [creditSort, setCreditSort] = useState({ key: 'submittedAt', direction: 'desc' });
+
+            // Extended Schooling listener
+            useEffect(() => {
+                const q = query(
+                    collection(db, 'artifacts', appId, 'public', 'data', 'extended_schooling_requests')
+                );
+                const unsub = onSnapshot(q, snap => {
+                    const reqs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setRequests(reqs);
+                    setLoading(false);
+                });
+                return () => unsub();
+            }, []);
+
+            // Schooling Credit Applications listener
+            useEffect(() => {
+                const q = query(
+                    collection(db, 'artifacts', appId, 'public', 'data', 'schooling_credit_applications')
+                );
+                const unsub = onSnapshot(q, snap => {
+                    const apps = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setCreditApps(apps);
+                    setLoadingCredits(false);
+                });
+                return () => unsub();
+            }, []);
+
+            const updateExtendedStatus = async (ids, newStatus) => {
+                try {
+                    const promises = ids.map(id => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'extended_schooling_requests', id), {
+                        status: newStatus,
+                        updatedAt: new Date().toISOString()
+                    }));
+                    await Promise.all(promises);
+                    setSelectedExtended(new Set());
+                } catch (error) {
+                    console.error("Error updating requests:", error);
+                    alert("Failed to update requests.");
+                }
+            };
+
+            const handleCreditAction = async (ids, newStatus) => {
+                try {
+                    const promises = ids.map(async id => {
+                        const app = creditApps.find(a => a.id === id);
+                        if (!app) return;
+                        
+                        // 1. Update Firestore document
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'schooling_credit_applications', id), {
+                            status: newStatus,
+                            reviewedAt: new Date().toISOString()
+                        });
+
+                        // 2. Webhook to Google Sheet
+                        if (newStatus === 'Approved') {
+                            const SCHOOLING_CREDIT_GAS_URL = "https://script.google.com/macros/s/AKfycbwbwWRdZfQbZPa4_K7grVDunbZRwYlfIYk_MvPPyNDtlTlbiAhu7z-AB8jXdaMbHzST/exec";
+                            try {
+                                await fetch(SCHOOLING_CREDIT_GAS_URL, {
+                                    method: "POST",
+                                    mode: "no-cors",
+                                    headers: { "Content-Type": "text/plain" },
+                                    body: JSON.stringify({
+                                        action: "approveSchoolingCredit",
+                                        studentId: app.studentId,
+                                        creditType: app.creditType,
+                                        dateCompleted: app.dateCompleted,
+                                        newStatus: newStatus,
+                                        approvedBy: "Mentoring Admin"
+                                    })
+                                });
+                            } catch (webhookErr) {
+                                console.warn("GAS webhook failed:", webhookErr);
+                            }
+                        }
+                    });
+                    
+                    await Promise.all(promises);
+                    setSelectedCredits(new Set());
+                } catch (error) {
+                    console.error("Error updating credit applications:", error);
+                    alert("Failed to update applications.");
+                }
+            };
+
+            const toggleExtendedSelection = (id) => {
+                const newSelection = new Set(selectedExtended);
+                if (newSelection.has(id)) newSelection.delete(id);
+                else newSelection.add(id);
+                setSelectedExtended(newSelection);
+            };
+
+            const toggleAllExtended = (visibleIds) => {
+                if (selectedExtended.size === visibleIds.length && visibleIds.length > 0) {
+                    setSelectedExtended(new Set());
+                } else {
+                    setSelectedExtended(new Set(visibleIds));
+                }
+            };
+
+            const toggleCreditSelection = (id) => {
+                const newSelection = new Set(selectedCredits);
+                if (newSelection.has(id)) newSelection.delete(id);
+                else newSelection.add(id);
+                setSelectedCredits(newSelection);
+            };
+
+            const toggleAllCredits = (visibleIds) => {
+                if (selectedCredits.size === visibleIds.length && visibleIds.length > 0) {
+                    setSelectedCredits(new Set());
+                } else {
+                    setSelectedCredits(new Set(visibleIds));
+                }
+            };
+
+            const requestExtendedSort = (key) => {
+                let direction = 'asc';
+                if (extendedSort.key === key && extendedSort.direction === 'asc') direction = 'desc';
+                setExtendedSort({ key, direction });
+            };
+
+            const requestCreditSort = (key) => {
+                let direction = 'asc';
+                if (creditSort.key === key && creditSort.direction === 'asc') direction = 'desc';
+                setCreditSort({ key, direction });
+            };
+
+            const sortedExtended = useMemo(() => {
+                let sortable = requests.filter(r => extendedFilter === 'All' || r.status === extendedFilter);
+                sortable.sort((a, b) => {
+                    let aVal = a[extendedSort.key] || '';
+                    let bVal = b[extendedSort.key] || '';
+                    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+                    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+                    if (aVal < bVal) return extendedSort.direction === 'asc' ? -1 : 1;
+                    if (aVal > bVal) return extendedSort.direction === 'asc' ? 1 : -1;
+                    return 0;
+                });
+                return sortable;
+            }, [requests, extendedSort, extendedFilter]);
+
+            const sortedCredits = useMemo(() => {
+                let sortable = creditApps.filter(c => creditFilter === 'All' || c.status === creditFilter);
+                sortable.sort((a, b) => {
+                    let aVal = a[creditSort.key] || '';
+                    let bVal = b[creditSort.key] || '';
+                    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+                    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+                    if (aVal < bVal) return creditSort.direction === 'asc' ? -1 : 1;
+                    if (aVal > bVal) return creditSort.direction === 'asc' ? 1 : -1;
+                    return 0;
+                });
+                return sortable;
+            }, [creditApps, creditSort, creditFilter]);
+
+            return (
+                <div className="space-y-6 flex flex-col h-full animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+                        <div>
+                            <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                <GraduationCap className="text-blue-600" /> Submitted Requests
+                            </h2>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Review and manage extended schooling and schooling credit applications.</p>
+                        </div>
+                        
+                        <div className="flex gap-2 bg-slate-100 dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <button onClick={() => setSubTab('extended')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${subTab === 'extended' ? 'bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'}`}>
+                                Extended Schooling
+                                {requests.filter(r => r.status === 'Pending').length > 0 && <span className="ml-2 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-black">{requests.filter(r => r.status === 'Pending').length}</span>}
+                            </button>
+                            <button onClick={() => setSubTab('credits')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${subTab === 'credits' ? 'bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'}`}>
+                                Schooling Credits
+                                {creditApps.filter(r => r.status === 'Pending').length > 0 && <span className="ml-2 bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-black">{creditApps.filter(r => r.status === 'Pending').length}</span>}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* EXTENDED SCHOOLING */}
+                    {subTab === 'extended' && (
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col flex-1 min-h-0">
+                            <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-wrap gap-4 items-center justify-between shrink-0">
+                                <div className="flex flex-wrap gap-2">
+                                    {['Pending', 'Approved', 'Rejected', 'All'].map(f => (
+                                        <button key={f} onClick={() => { setExtendedFilter(f); setSelectedExtended(new Set()); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${extendedFilter === f ? 'bg-blue-600 text-white shadow-sm' : 'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                                            {f} ({f === 'All' ? requests.length : requests.filter(r => r.status === f).length})
+                                        </button>
+                                    ))}
+                                </div>
+                                {selectedExtended.size > 0 && (
+                                    <div className="flex gap-2">
+                                        <button onClick={() => updateExtendedStatus(Array.from(selectedExtended), 'Approved')} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-2">
+                                            <CheckCircle2 size={16}/> Approve Selected ({selectedExtended.size})
+                                        </button>
+                                        <button onClick={() => updateExtendedStatus(Array.from(selectedExtended), 'Rejected')} className="px-4 py-2 bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 hover:bg-rose-200 dark:hover:bg-rose-900/50 text-xs font-bold rounded-lg flex items-center gap-2">
+                                            <XCircle size={16}/> Reject Selected
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <div className="flex-1 overflow-auto custom-scrollbar">
+                                {loading ? (
+                                    <div className="flex justify-center items-center h-full"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
+                                ) : sortedExtended.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full p-8">
+                                        <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4"><CheckCircle2 className="text-blue-500" size={32} /></div>
+                                        <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-2">No Requests</h3>
+                                        <p className="text-slate-500 dark:text-slate-400">There are no extended schooling requests for the selected filter.</p>
+                                    </div>
+                                ) : (
+                                    <table className="w-full text-left border-collapse">
+                                        <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10">
+                                            <tr>
+                                                <th className="p-3 w-12 border-b border-slate-200 dark:border-slate-700">
+                                                    <input type="checkbox" className="rounded border-slate-300 text-blue-600" checked={sortedExtended.length > 0 && selectedExtended.size === sortedExtended.length} onChange={() => toggleAllExtended(sortedExtended.map(r => r.id))} />
+                                                </th>
+                                                {[ 
+                                                    { key: 'studentId', label: 'Student ID#' },
+                                                    { key: 'studentName', label: 'Name of Trainee' },
+                                                    { key: 'companyName', label: 'Assigned Company' },
+                                                    { key: 'iptDateEnd', label: 'IPT Date End' },
+                                                    { key: 'reason', label: 'Reason' },
+                                                    { key: 'status', label: 'Status' }
+                                                ].map(col => (
+                                                    <th key={col.key} onClick={() => requestExtendedSort(col.key)} className="p-3 border-b border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                                        <div className="flex items-center gap-2">
+                                                            {col.label}
+                                                            {extendedSort.key === col.key && <ArrowUpDown size={12} className={extendedSort.direction === 'desc' ? 'text-blue-500' : 'text-slate-400'}/>}
+                                                        </div>
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {sortedExtended.map(req => (
+                                                <tr key={req.id} className={`border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${selectedExtended.has(req.id) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                                                    <td className="p-3">
+                                                        <input type="checkbox" className="rounded border-slate-300 text-blue-600" checked={selectedExtended.has(req.id)} onChange={() => toggleExtendedSelection(req.id)} />
+                                                    </td>
+                                                    <td className="p-3 text-sm font-semibold text-slate-800 dark:text-slate-200">{req.studentId}</td>
+                                                    <td className="p-3 text-sm font-bold text-slate-800 dark:text-slate-100">{req.studentName}</td>
+                                                    <td className="p-3 text-sm text-slate-600 dark:text-slate-300">{req.companyName || 'N/A'}</td>
+                                                    <td className="p-3 text-sm text-slate-600 dark:text-slate-300">{req.iptDateEnd || 'N/A'}</td>
+                                                    <td className="p-3 text-sm text-slate-600 dark:text-slate-300 max-w-[200px] truncate" title={req.reason || req.notes || 'N/A'}>{req.reason || req.notes || 'N/A'}</td>
+                                                    <td className="p-3">
+                                                        <span className={`px-2 py-1 rounded text-xs font-bold ${req.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' : req.status === 'Rejected' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                            {req.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* SCHOOLING CREDITS */}
+                    {subTab === 'credits' && (
+                        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col flex-1 min-h-0">
+                            <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex flex-wrap gap-4 items-center justify-between shrink-0">
+                                <div className="flex flex-wrap gap-2">
+                                    {['Pending', 'Approved', 'Rejected', 'All'].map(f => (
+                                        <button key={f} onClick={() => { setCreditFilter(f); setSelectedCredits(new Set()); }} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${creditFilter === f ? 'bg-blue-600 text-white shadow-sm' : 'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}>
+                                            {f} ({f === 'All' ? creditApps.length : creditApps.filter(c => c.status === f).length})
+                                        </button>
+                                    ))}
+                                </div>
+                                {selectedCredits.size > 0 && (
+                                    <div className="flex gap-2">
+                                        <button onClick={() => handleCreditAction(Array.from(selectedCredits), 'Approved')} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-2">
+                                            <CheckCircle2 size={16}/> Approve Selected ({selectedCredits.size})
+                                        </button>
+                                        <button onClick={() => handleCreditAction(Array.from(selectedCredits), 'Rejected')} className="px-4 py-2 bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 hover:bg-rose-200 dark:hover:bg-rose-900/50 text-xs font-bold rounded-lg flex items-center gap-2">
+                                            <XCircle size={16}/> Reject Selected
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <div className="flex-1 overflow-auto custom-scrollbar">
+                                {loadingCredits ? (
+                                    <div className="flex justify-center items-center h-full"><Loader2 className="animate-spin text-blue-500" size={32} /></div>
+                                ) : sortedCredits.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full p-8">
+                                        <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mb-4"><CheckCircle2 className="text-emerald-500" size={32} /></div>
+                                        <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200 mb-2">No Applications</h3>
+                                        <p className="text-slate-500 dark:text-slate-400">There are no schooling credit applications for the selected filter.</p>
+                                    </div>
+                                ) : (
+                                    <table className="w-full text-left border-collapse">
+                                        <thead className="sticky top-0 bg-slate-50 dark:bg-slate-900 shadow-sm z-10">
+                                            <tr>
+                                                <th className="p-3 w-12 border-b border-slate-200 dark:border-slate-700">
+                                                    <input type="checkbox" className="rounded border-slate-300 text-blue-600" checked={sortedCredits.length > 0 && selectedCredits.size === sortedCredits.length} onChange={() => toggleAllCredits(sortedCredits.map(c => c.id))} />
+                                                </th>
+                                                {[ 
+                                                    { key: 'studentId', label: 'Student ID#' },
+                                                    { key: 'studentName', label: 'Trainee Name' },
+                                                    { key: 'companyName', label: 'Assigned Company' },
+                                                    { key: 'creditType', label: 'Type of Request' },
+                                                    { key: 'status', label: 'Status' }
+                                                ].map(col => (
+                                                    <th key={col.key} onClick={() => requestCreditSort(col.key)} className="p-3 border-b border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                                                        <div className="flex items-center gap-2">
+                                                            {col.label}
+                                                            {creditSort.key === col.key && <ArrowUpDown size={12} className={creditSort.direction === 'desc' ? 'text-blue-500' : 'text-slate-400'}/>}
+                                                        </div>
+                                                    </th>
+                                                ))}
+                                                <th className="p-3 border-b border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Attachments</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {sortedCredits.map(app => (
+                                                <tr key={app.id} className={`border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${selectedCredits.has(app.id) ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                                                    <td className="p-3">
+                                                        <input type="checkbox" className="rounded border-slate-300 text-blue-600" checked={selectedCredits.has(app.id)} onChange={() => toggleCreditSelection(app.id)} />
+                                                    </td>
+                                                    <td className="p-3 text-sm font-semibold text-slate-800 dark:text-slate-200">{app.studentId}</td>
+                                                    <td className="p-3">
+                                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">{app.studentName}</p>
+                                                        <p className="text-[10px] text-slate-400 mt-0.5">Completed: {app.dateCompleted ? new Date(app.dateCompleted).toLocaleDateString() : 'N/A'}</p>
+                                                    </td>
+                                                    <td className="p-3 text-sm text-slate-600 dark:text-slate-300">{app.companyName || 'N/A'}</td>
+                                                    <td className="p-3">
+                                                        <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{app.creditType}</span>
+                                                        <span className="ml-2 text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full font-bold">{app.creditsRequested} credit{app.creditsRequested !== 1 ? 's' : ''}</span>
+                                                    </td>
+                                                    <td className="p-3">
+                                                        <span className={`px-2 py-1 rounded text-xs font-bold ${app.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' : app.status === 'Rejected' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                            {app.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-3">
+                                                        {app.attachmentUrl ? (
+                                                            <a href={app.attachmentUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-400 text-xs font-bold rounded-lg border border-blue-200 dark:border-blue-800 transition-colors">
+                                                                <Eye size={14} /> View
+                                                            </a>
+                                                        ) : (
+                                                            <span className="text-xs text-slate-400 italic">No file</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+

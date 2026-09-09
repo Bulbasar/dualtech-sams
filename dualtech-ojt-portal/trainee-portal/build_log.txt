@@ -1,0 +1,14 @@
+
+> trainee-portal@0.0.0 build
+> vite build
+
+[36mvite v8.2.1 [32mbuilding client environment for production...[36m[39m
+[2Ktransforming...
+<--- Last few GCs --->
+
+[3412:000002375451C000]     3995 ms: Scavenge 24.6 (34.1) -> 20.3 (35.6) MB, pooled: 0 MB, 4.31 / 0.01 ms  (average mu = 0.991, current mu = 0.991) allocation failure; 
+[3412:000002375451C000]     4175 ms: Scavenge 26.3 (35.6) -> 21.2 (37.4) MB, pooled: 0 MB, 4.39 / 0.00 ms  (average mu = 0.991, current mu = 0.991) allocation failure; 
+
+FATAL ERROR: Zone Allocation failed - process out of memory
+----- Native stack trace -----
+

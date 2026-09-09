@@ -1,0 +1,102 @@
+--- FROM: C:\Users\rober\.gemini\antigravity-ide\brain\17534407-cceb-4a8b-bc83-dd6275cf6374\.system_generated\logs\transcript_full.jsonl ---
+--- FROM: C:\Users\rober\.gemini\antigravity-ide\brain\17534407-cceb-4a8b-bc83-dd6275cf6374\.system_generated\logs\transcript_full.jsonl ---
+--- FROM: C:\Users\rober\.gemini\antigravity-ide\brain\17534407-cceb-4a8b-bc83-dd6275cf6374\.system_generated\logs\transcript_full.jsonl ---
+--- FROM: C:\Users\rober\.gemini\antigravity-ide\brain\205518c0-047b-44ce-b386-46249e6999ef\.system_generated\logs\transcript_full.jsonl ---
+            const getDateRange = () => {
+                let start = '', end = '', periodName = '';
+                if (viewMode === 'Daily') {
+                    start = dailyDate; end = dailyDate; periodName = dailyDate;
+                } else if (viewMode === 'Monthly' || (viewMode === 'Perfect Attendance' && perfectType === 'Monthly')) {
+                    const mDate = monthlyDate || getLocalYYYYMMDD(new Date()).substring(0,7);
+                    start = `${mDate}-01`;
+                    const dateObj = new Date(start.replace(/-/g, '/'));
+                    dateObj.setMonth(dateObj.getMonth() + 1);
+                    dateObj.setDate(0);
+                    end = getLocalYYYYMMDD(dateObj);
+                    const mNameDate = new Date(start.replace(/-/g, '/'));
+                    periodName = mNameDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+                } else if (viewMode === 'Weekly' || (viewMode === 'Perfect Attendance' && perfectType === 'Weekly')) {
+                    const wDate = weeklyDate || getLocWeekStr();
+                    const [year, week] = wDate.split('-W');
+                    const d = new Date(year, 0, 1 + (week - 1) * 7);
+                    const day = d.getDay();
+                    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                    const startObj = new Date(d.setDate(diff));
+                    start = getLocalYYYYMMDD(startObj);
+                    const endObj = new Date(startObj);
+                    endObj.setDate(endObj.getDate() + 6); 
+                    end = getLocalYYYYMMDD(endObj);
+                    periodName = `Week of ${start}`;
+                }
+                return { start, end, periodName };
+            };
+--- CHUNK END ---
+                        const isPerfect = (studentLogs, startDate, endDate, companyName) => {
+                            let startD = new Date(startDate.replace(/-/g, '/'));
+                            let endD = new Date(endDate.replace(/-/g, '/'));
+                            if (endD > today) endD = today; 
+                            if (startD > endD) return false;
+--- CHUNK END ---
+                        {viewMode === 'Perfect Attendance' && (
+                            <div className="flex bg-amber-100/50 p-1 rounded-xl">
+                                {['Weekly', 'Monthly', '6-Months'].map(type => (
+                                    <button 
+                                        key={type} onClick={() => setPerfectType(type)} 
+                                        className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${perfectType === type ? 'bg-amber-500 text-white shadow-sm' : 'text-amber-700 hover:bg-amber-100'}`}
+                                    >
+                                        {type}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {viewMode === 'Daily' && (
+                            <input type="date" value={dailyDate} onChange={e => setDailyDate(e.target.value)} className="flex-1 w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none" />
+                        )}
+
+                        {(viewMode === 'Weekly' || (viewMode === 'Perfect Attendance' && perfectType === 'Weekly')) && (
+                            <input type="week" value={weeklyDate} onChange={e => setWeeklyDate(e.target.value)} className="flex-1 w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none" />
+                        )}
+
+                        {(viewMode === 'Monthly' || (viewMode === 'Perfect Attendance' && perfectType === 'Monthly')) && (
+                            <input type="month" value={monthlyDate} onChange={e => setMonthlyDate(e.target.value)} className="flex-1 w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none" />
+                        )}
+
+                        {(viewMode === 'Perfect Attendance' && perfectType === '6-Months') && (
+                            <div className="flex-1 w-full text-slate-500 text-sm font-medium flex items-center gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                <AlertCircle className="text-slate-400 shrink-0" size={18} />
+                                Auto-calculating all completed 6-month intervals from each trainee's IPT Start Date.
+                            </div>
+                        )}
+
+                        {viewMode !== 'Perfect Attendance' && (
+                            <>
+                                <div className="flex-1 w-full relative">
+                                    <Search className="absolute left-3.5 top-3.5 text-slate-400" size={18} />
+                                    <input type="text" placeholder="Search Trainee, Company, or IC..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-blue-500 text-sm" />
+                                </div>
+
+                                <button onClick={exportToXLS} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-md w-full md:w-auto shrink-0">
+                                    <Download size={18} /> Export Current View
+                                </button>
+                            </>
+                        )}
+--- CHUNK END ---
+--- FROM: C:\Users\rober\.gemini\antigravity-ide\brain\82b14f24-f4fc-4b42-a392-6d96c9cc7f66\.system_generated\logs\transcript_full.jsonl ---
+                    <h2 className="exec-page-title">Global Attendance Logs</h2>
+--- CHUNK END ---
+                            <h2 className="exec-page-title">Trainee Surveys</h2>
+                            <p className="exec-page-subtitle">Create and manage targeted popup surveys.</p>
+--- CHUNK END ---
+                            <h2 className="exec-page-title">System Announcements</h2>
+                            <p className="exec-page-subtitle">Create pop-ups or dashboard announcements for Trainees and Industrial Coordinators.</p>
+--- CHUNK END ---
+                            <h2 className="exec-page-title">IC Surveys</h2>
+                            <p className="exec-page-subtitle">Create mandatory popup surveys for Industrial Coordinators.</p>
+--- CHUNK END ---
+                            <h2 className="exec-page-title flex items-center gap-2"><CalendarDays className="text-blue-600" /> Unified Attendance Tracker</h2>
+                            <p className="exec-page-subtitle">Dynamic table viewing, searching, and simplified export.</p>
+--- CHUNK END ---
+--- FROM: C:\Users\rober\.gemini\antigravity-ide\brain\9610c4ff-4d79-4ada-b7b5-f71b7532e98b\.system_generated\logs\transcript_full.jsonl ---
+--- FROM: C:\Users\rober\.gemini\antigravity-ide\brain\f22eb466-0189-44a6-8e13-e12e1129b739\.system_generated\logs\transcript_full.jsonl ---
+--- FROM: C:\Users\rober\.gemini\antigravity-ide\brain\f22eb466-0189-44a6-8e13-e12e1129b739\.system_generated\logs\transcript_full.jsonl ---

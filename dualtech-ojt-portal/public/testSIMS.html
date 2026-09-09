@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Enrollment Form</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #333; border-bottom: 2px solid #0056b3; padding-bottom: 10px; margin-bottom: 20px;}
+        h3 { color: #0056b3; margin-top: 30px; border-bottom: 1px solid #ccc; padding-bottom: 5px;}
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; }
+        .form-group { display: flex; flex-direction: column; }
+        label { font-weight: bold; margin-bottom: 5px; font-size: 14px; color: #555;}
+        input[type="text"], input[type="number"], input[type="date"], input[type="email"] { 
+            padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;
+        }
+        input[readonly] { background-color: #e9ecef; cursor: not-allowed; font-weight: bold; color: #d9534f; }
+        .checkbox-group { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+        .checkbox-group input { width: 18px; height: 18px; }
+        button { background-color: #0056b3; color: white; padding: 15px; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; width: 100%; margin-top: 30px; }
+        button:hover { background-color: #004494; }
+        #statusMessage { text-align: center; margin-top: 15px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Student Enrollment Form</h2>
+    <form id="enrollmentForm">
+        
+        <h3>Personal Details</h3>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Student ID#</label>
+                <input type="text" id="studentId" name="studentId" readonly placeholder="Loading next ID...">
+            </div>
+            <div class="form-group"><label>Date Enrolled</label><input type="date" name="dateEnrolled"></div>
+            <div class="form-group"><label>Family Name</label><input type="text" name="family"></div>
+            <div class="form-group"><label>Given Name</label><input type="text" name="given"></div>
+            <div class="form-group"><label>Middle Name</label><input type="text" name="middle"></div>
+            <div class="form-group"><label>Suffix (e.g., Jr, III)</label><input type="text" name="suffix"></div>
+            
+            <div class="form-group"><label>Birthday</label><input type="date" name="birthday"></div>
+            <div class="form-group"><label>Place of Birth</label><input type="text" name="placeOfBirth"></div>
+            <div class="form-group"><label>Age</label><input type="number" name="age"></div>
+            <div class="form-group"><label>Height</label><input type="text" name="height"></div>
+            <div class="form-group"><label>Weight</label><input type="text" name="weight"></div>
+            <div class="form-group"><label>Religion</label><input type="text" name="religion"></div>
+            <div class="form-group"><label>Civil Status</label><input type="text" name="civilStatus"></div>
+        </div>
+
+        <h3>Contact & Address</h3>
+        <div class="form-grid">
+            <div class="form-group"><label>House No, Street, Phase, Sitio</label><input type="text" name="address"></div>
+            <div class="form-group"><label>Brgy.</label><input type="text" name="brgy"></div>
+            <div class="form-group"><label>Town</label><input type="text" name="town"></div>
+            <div class="form-group"><label>Province</label><input type="text" name="province"></div>
+            <div class="form-group"><label>Contact No.</label><input type="text" name="contactNo"></div>
+            <div class="form-group"><label>Email Address</label><input type="email" name="email"></div>
+        </div>
+
+        <h3>Family Background</h3>
+        <div class="form-grid">
+            <div class="form-group"><label>Father's Name</label><input type="text" name="fatherName"></div>
+            <div class="form-group"><label>Father's Employment</label><input type="text" name="fatherEmployment"></div>
+            <div class="form-group"><label>Father's Contact No</label><input type="text" name="fatherContact"></div>
+            <div class="form-group"><label>Father's Educational Background</label><input type="text" name="fatherEduc"></div>
+            
+            <div class="form-group"><label>Mother's Name</label><input type="text" name="motherName"></div>
+            <div class="form-group"><label>Mother's Employment</label><input type="text" name="motherEmployment"></div>
+            <div class="form-group"><label>Mother's Contact No</label><input type="text" name="motherContact"></div>
+            <div class="form-group"><label>Mother's Educational Background</label><input type="text" name="motherEduc"></div>
+            
+            <div class="form-group"><label>Church Wedding/Civil</label><input type="text" name="churchCivil"></div>
+            <div class="form-group"><label>Separated (Yes/No)</label><input type="text" name="separated"></div>
+            <div class="form-group"><label>No. of Siblings</label><input type="number" name="siblings"></div>
+            <div class="form-group"><label>Siblings Position (e.g., 1st, 2nd)</label><input type="text" name="siblingsPosition"></div>
+            
+            <div class="form-group"><label>Guardian Name</label><input type="text" name="guardianName"></div>
+            <div class="form-group"><label>Guardian Contact No</label><input type="text" name="guardianContact"></div>
+            <div class="form-group"><label>Guardian Relationship</label><input type="text" name="guardianRelationship"></div>
+        </div>
+
+        <h3>Educational Background</h3>
+        <div class="form-grid">
+            <div class="form-group"><label>School Last Attended</label><input type="text" name="schoolLastAttended"></div>
+            <div class="form-group"><label>Location</label><input type="text" name="location"></div>
+            <div class="form-group"><label>Highest Attainment</label><input type="text" name="highestAttainment"></div>
+            <div class="form-group"><label>Year Graduate</label><input type="text" name="yearGraduate"></div>
+        </div>
+
+        <h3>Requirements Submitted (Check all that apply)</h3>
+        <div class="form-grid">
+            <div class="checkbox-group"><input type="checkbox" name="reqCard" id="reqCard"><label for="reqCard">Card/Form137/TOR</label></div>
+            <div class="checkbox-group"><input type="checkbox" name="reqDiploma" id="reqDiploma"><label for="reqDiploma">Diploma</label></div>
+            <div class="checkbox-group"><input type="checkbox" name="reqPicture" id="reqPicture"><label for="reqPicture">2X2 Picture</label></div>
+            <div class="checkbox-group"><input type="checkbox" name="reqBirthCert" id="reqBirthCert"><label for="reqBirthCert">Birth Certificate</label></div>
+        </div>
+
+        <h3>Other Details</h3>
+        <div class="form-grid">
+            <div class="form-group"><label>Medical Result</label><input type="text" name="medicalResult"></div>
+            <div class="form-group"><label>Coordinator</label><input type="text" name="coordinator"></div>
+            <div class="form-group"><label>Sponsor</label><input type="text" name="sponsor"></div>
+            <div class="form-group"><label>Referral</label><input type="text" name="referral"></div>
+        </div>
+
+        <button type="submit" id="submitBtn">Submit Enrollment Form</button>
+        <p id="statusMessage"></p>
+    </form>
+</div>
+
+<script>
+    // REPLACE THIS URL WITH YOUR WEB APP URL FROM STEP 2
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyakdq06bcY26pgeFNVbI8b01nIcav0dwYVwYYI-PEzwDzdScU80NTLMGZPa_h9UsDg/exec"; 
+
+    // Fetch next Student ID on page load
+    window.onload = function() {
+        fetch(GOOGLE_SCRIPT_URL)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('studentId').value = data.nextId;
+            })
+            .catch(error => {
+                document.getElementById('studentId').value = "Error loading ID";
+                console.error("Error fetching ID:", error);
+            });
+    };
+
+    // Handle form submission
+    document.getElementById("enrollmentForm").addEventListener("submit", function(e) {
+        e.preventDefault();
+        
+        const btn = document.getElementById("submitBtn");
+        const status = document.getElementById("statusMessage");
+        
+        btn.disabled = true;
+        btn.innerText = "Submitting Data...";
+        status.innerText = "";
+        status.style.color = "black";
+
+        // Gather data manually to handle checkboxes easily
+        const formData = {
+            dateEnrolled: document.querySelector('input[name="dateEnrolled"]').value,
+            family: document.querySelector('input[name="family"]').value,
+            given: document.querySelector('input[name="given"]').value,
+            middle: document.querySelector('input[name="middle"]').value,
+            suffix: document.querySelector('input[name="suffix"]').value,
+            birthday: document.querySelector('input[name="birthday"]').value,
+            placeOfBirth: document.querySelector('input[name="placeOfBirth"]').value,
+            age: document.querySelector('input[name="age"]').value,
+            height: document.querySelector('input[name="height"]').value,
+            weight: document.querySelector('input[name="weight"]').value,
+            religion: document.querySelector('input[name="religion"]').value,
+            civilStatus: document.querySelector('input[name="civilStatus"]').value,
+            address: document.querySelector('input[name="address"]').value,
+            brgy: document.querySelector('input[name="brgy"]').value,
+            town: document.querySelector('input[name="town"]').value,
+            province: document.querySelector('input[name="province"]').value,
+            contactNo: document.querySelector('input[name="contactNo"]').value,
+            email: document.querySelector('input[name="email"]').value,
+            fatherName: document.querySelector('input[name="fatherName"]').value,
+            fatherEmployment: document.querySelector('input[name="fatherEmployment"]').value,
+            fatherContact: document.querySelector('input[name="fatherContact"]').value,
+            fatherEduc: document.querySelector('input[name="fatherEduc"]').value,
+            motherName: document.querySelector('input[name="motherName"]').value,
+            motherEmployment: document.querySelector('input[name="motherEmployment"]').value,
+            motherContact: document.querySelector('input[name="motherContact"]').value,
+            motherEduc: document.querySelector('input[name="motherEduc"]').value,
+            churchCivil: document.querySelector('input[name="churchCivil"]').value,
+            separated: document.querySelector('input[name="separated"]').value,
+            siblings: document.querySelector('input[name="siblings"]').value,
+            siblingsPosition: document.querySelector('input[name="siblingsPosition"]').value,
+            guardianName: document.querySelector('input[name="guardianName"]').value,
+            guardianContact: document.querySelector('input[name="guardianContact"]').value,
+            guardianRelationship: document.querySelector('input[name="guardianRelationship"]').value,
+            schoolLastAttended: document.querySelector('input[name="schoolLastAttended"]').value,
+            location: document.querySelector('input[name="location"]').value,
+            highestAttainment: document.querySelector('input[name="highestAttainment"]').value,
+            yearGraduate: document.querySelector('input[name="yearGraduate"]').value,
+            reqCard: document.getElementById('reqCard').checked,
+            reqDiploma: document.getElementById('reqDiploma').checked,
+            reqPicture: document.getElementById('reqPicture').checked,
+            reqBirthCert: document.getElementById('reqBirthCert').checked,
+            medicalResult: document.querySelector('input[name="medicalResult"]').value,
+            coordinator: document.querySelector('input[name="coordinator"]').value,
+            sponsor: document.querySelector('input[name="sponsor"]').value,
+            referral: document.querySelector('input[name="referral"]').value,
+        };
+
+        fetch(GOOGLE_SCRIPT_URL, {
+            method: "POST",
+            body: JSON.stringify(formData),
+            headers: {
+                "Content-Type": "text/plain;charset=utf-8",
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerText = "Submit Enrollment Form";
+            if (data.status === "success") {
+                status.innerText = "Success! Student ID " + data.id + " has been recorded.";
+                status.style.color = "green";
+                document.getElementById("enrollmentForm").reset();
+                document.getElementById('studentId').value = parseInt(data.id) + 1; // setup next ID
+            } else {
+                throw new Error("Server error");
+            }
+        })
+        .catch(error => {
+            btn.disabled = false;
+            btn.innerText = "Submit Enrollment Form";
+            status.innerText = "Error saving data. Please check your connection.";
+            status.style.color = "red";
+            console.error("Error:", error);
+        });
+    });
+</script>
+
+</body>
+</html>

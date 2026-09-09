@@ -1,0 +1,718 @@
+return (
+1311:                 <div className="space-y-6 pb-20">
+1312:                     <div>
+1313:                         <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2"><BookOpen className="text-emerald-600"/> Schooling & PDS</h2>
+1314:                         <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+1315:                             {isOnlineAssigned 
+1316:                                 ? "Complete your online schooling activities and submit your output here." 
+1317:                                 : "Scan your mentor's QR code to log attendance or generate your own for them to scan."}
+1318:                         </p>
+1319:                     </div>
+1320: 
+1321:                     {isOnlineAssigned ? (
+1322:                         /* ================= ONLINE SCHOOLING VIEW ================= */
+1323:                         <div className="space-y-6 animate-fade-in">
+1324:                             {!currentSchedule ? (
+1325:                                 <div className="bg-emerald-50 border border-emerald-200 p-8 rounded-3xl text-center shadow-sm">
+1326:                                     <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
+1327:                                     <h2 className="text-xl font-bold text-emerald-800 mb-2">All Caught Up!</h2>
+1328:                                     <p className="text-emerald-600 text-sm max-w-sm mx-auto">
+1329:                                         {activeSchedules.length > 0 
+1330:                                             ? "You have successfully submitted your outputs for all currently active online activities. Your mentor will verify your submissions."
+1331:                                             : "There are currently no active online schooling assignments scheduled for you."}
+1332:                                     </p>
+1333:                                 </div>
+1334:                             ) : (
+1335:                                 <>
+1336:                                     {/* Assignment Details Display */}
+1337:                                     <div className="bg-blue-50 border border-blue-200 p-6 rounded-3xl shadow-sm">
+1338:                                         <h3 className="font-black text-blue-900 mb-2 flex items-center gap-2">
+1339:                                             <BookOpen size={20} className="text-blue-600" /> Current Assignment
+1340:                                         </h3>
+1341:                                         <div className="space-y-3 mt-4">
+1342:                                             <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-blue-100 shadow-sm">
+1343:                                                 <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+1344:                                                     <p className="text-xs font-bold text-emerald-600 uppercase">VFL: {currentSchedule.vflTopic}</p>
+1345:                                                     {currentSchedule.vflVideoLink && (
+1346:                                                         <a href={currentSchedule.vflVideoLink} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline font-medium mt-1 block">
+1347:                                                             Watch VFL Video
+1348:                                                         </a>
+1349:                                                     )}
+1350:                                                 </div>
+1351:                                                 <div>
+1352:                                                     <p className="text-xs font-bold text-blue-600 uppercase">LSCE: {currentSchedule.lsceTopic}</p>
+1353:                                                     {currentSchedule.lsceVideoLink && (
+1354:                                                         <a href={currentSchedule.lsceVideoLink} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline font-medium mt-1 block">
+1355:                                                             Watch LSCE Video
+1356:                                                         </a>
+1357:                                                     )}
+1358:                                                 </div>
+1359:                                                 <p className="text-[10px] text-slate-400 mt-4 font-bold uppercase tracking-wider text-right">
+1360:                                                     Due by: {new Date(currentSchedule.viewableUntil).toLocaleDateString('en-US')}
+1361:                                                 </p>
+1362:                                             </div>
+1363:                                         </div>
+1364:                                     </div>
+1365: 
+1366:                                     {/* Submission Form */}
+1367:                                     <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700">
+1368:                                         <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-4">
+1369:                                             <FileText size={20} className="text-emerald-500" /> Submit Output
+1370:                                         </h3>
+1371:                                         <form onSubmit={handleOnlineSubmit} className="space-y-5">
+1372:                                             
+1373:                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+1374:                                                 <div>
+1375:                                                     <label className="block text-xs font-bold text-emerald-600 uppercase mb-1">VFL Title for the Week</label>
+1376:                                                     <input 
+1377:                                                         type="text" 
+1378:                                                         value={onlineForm.vflTopic} 
+1379:                                                         onChange={e => setOnlineForm({...onlineForm, vflTopic: e.target.value})} 
+1380:                                                         className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-emerald-500 text-sm" 
+1381:                                                         required 
+1382:                                                         placeholder="Enter VFL Title" 
+1383:                                                     />
+1384:                                                 </div>
+1385:                                                 <div>
+1386:                                                     <label className="block text-xs font-bold text-blue-600 uppercase mb-1">LSCE Title for the Week</label>
+1387:                                                     <input 
+1388:                                                         type="text" 
+1389:                                                         value={onlineForm.lsceTopic} 
+1390:                                                         onChange={e => setOnlineForm({...onlineForm, lsceTopic: e.target.value})} 
+1391:                                                         className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 text-sm" 
+1392:                                                         required 
+1393:                                                         placeholder="Enter LSCE Title" 
+1394:                                                     />
+1395:                                                 </div>
+1396:                                             </div>
+1397: 
+1398:                                             <div>
+1399:                                                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Additional Notes / Insights (Optional)</label>
+1400:                                                 <textarea value={onlineForm.notes} onChange={e=>setOnlineForm({...onlineForm, notes: e.target.value})} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-emerald-500 text-sm resize-none" rows="3" placeholder="Any additional insights or notes (optional)"></textarea>
+1401:                                             </div>
+1402:                                             
+1403:                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t pt-5 border-slate-100 dark:border-slate-800">
+1404:                                                 {/* VFL PHOTO UPLOAD */}
+1405:                                                 <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50 dark:bg-slate-800">
+1406:                                                     <label className="block text-xs font-bold text-emerald-600 uppercase mb-1">Upload VFL Output</label>
+1407:                                                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-3">Attach a photo of your Value Formation activity.</p>
+1408:                                                     <input type="file" required accept="image/*" onChange={(e) => setVflFile(e.target.files[0])}
+1409:                                                         className="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" />
+1410:                                                 </div>
+1411: 
+1412:                                                 {/* LSCE PHOTO UPLOAD */}
+1413:                                                 <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50 dark:bg-slate-800">
+1414:                                                     <label className="block text-xs font-bold text-blue-600 uppercase mb-1">Upload LSCE Output</label>
+1415:                                                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-3">Attach a photo of your Life Skills / Tech activity.</p>
+1416:                                                     <input type="file" required accept="image/*" onChange={(e) => setLsceFile(e.target.files[0])}
+1417:                                                         className="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+1418:                                                 </div>
+1419: 
+1420:                                                 {/* DR ENTRY PHOTO UPLOAD */}
+1421:                                                 <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50 dark:bg-slate-800">
+1422:                                                     <label className="block text-xs font-bold text-purple-600 uppercase mb-1">Upload DR Entry</label>
+1423:                                                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mb-3">Attach a photo of your DR Entry.</p>
+1424:                                                     <input type="file" required accept="image/*" onChange={(e) => setDrEntryFile(e.target.files[0])}
+1425:                                                         className="w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100" />
+1426:                                                 </div>
+1427:                                             </div>
+1428: 
+1429:                                             <button disabled={submittingOnline} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl shadow-md disabled:opacity-50 transition-colors flex justify-center items-center gap-2 mt-4">
+1430:                                                 {submittingOnline ? <><Loader2 size={18} className="animate-spin" /> Submitting Activities...</> : 'Submit Online Schooling'}
+1431:                                             </button>
+1432:                                         </form>
+1433:                                     </div>
+1434:                                 </>
+1435:                             )}
+1436:                         </div>
+1437:                     ) : (
+1438:                         /* ================= OFFLINE/ONSITE QR VIEW ================= */
+1439:                         <>
+1440:                             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 text-center transition-all">
+1441:                                 <h3 className="font-bold text-slate-800 dark:text-slate-100 mb-4 flex justify-center items-center gap-2">
+1442:                                     <QrCode size={20} className="text-emerald-500" /> My Attendance QR
+1443:                                 </h3>
+1444:                                 
+1445:                                 {!showTraineeQR ? (
+1446:                                     <div className="flex flex-col items-center">
+1447:                                         {qrGenError && <p className="text-red-500 text-xs font-bold mb-3 bg-red-50 p-2 rounded-lg border border-red-100">{qrGenError}</p>}
+1448:                                         <button 
+1449:                                             onClick={handleGenerateTraineeQR}
+1450:                                             disabled={generatingQR}
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+---
+
+Created At: 2026-07-29T12:43:46Z
+Completed At: 2026-07-29T12:43:47Z
+
+				The command completed successfully.
+				Output:
+				941: Submit a dispute for missing schooling on <strong>Week {disputeWeek.weekNumber}</strong> ({disputeWeek.startStr} - {disputeWeek.endStr}).
+977: function SchoolingTab({ user, profile, masterStatus }) {
+993: // --- NEW: Online Schooling States ---
+1015: // --- NEW: Extended Schooling States ---
+1020: // --- HELPER FUNCTIONS FOR SCHOOLING TAB ---
+1038: // --- Extended Schooling Request Logic ---
+1045: collection(db, 'artifacts', appId, 'public', 'data', 'extended_schooling_requests'),
+1061: const handleRequestExtendedSchooling = async () => {
+1064: await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'extended_schooling_requests'), {
+1072: showToast("Extended Schooling Request submitted successfully.", "success");
+1074: console.error("Error requesting extended schooling:", error);
+1111: collection(db, 'artifacts', appId, 'public', 'data', 'schooling_disputes'),
+1120: // 2. Fetch Active Schedules from 'schooling_calendar' based on viewable dates[cite: 3, 4]
+1122: const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'schooling_calendar'));
+1127: .filter(act => act.activityType === 'Schooling' && act.viewableFrom <= todayStr && act.viewableUntil >= todayStr);
+1169: const completedOnlineLogs = history.filter(h => h.activityType === 'Online Schooling');
+1420: activityType: 'Online Schooling',
+1433: alert("Online Schooling submitted successfully via Google Apps Script!");
+1448: const locationText = `${record.hub || ''} ${record.venue || ''} ${record.rawSheetData?.['Schooling / Mentoring Hub'] || ''}`;
+1458: const schoolingRecords = history.filter(h => {
+1459: const locationText = `${h.hub || ''} ${h.venue || ''} ${h.rawSheetData?.['Schooling / Mentoring Hub'] || ''}`;
+1462: const isSchooling = combinedText.includes('SCHOOLING') ||
+1467: if (!isSchooling) return false;
+1471: const attendedCount = schoolingRecords.reduce((total, h) => {
+1501: schoolingRecords.forEach(l => {
+1526: }, [profile, masterStatus, schoolingRecords]);
+1534: await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'schooling_disputes'), {
+1567: The Schooling tab is only accessible to Active and Post BSTP trainees. Your current status is <strong>{masterStatus}</strong>.
+1577: <h2 className="text-xl font-bold text-amber-800 mb-2">Extended Schooling Required</h2>
+1579: Your status is <strong>Completed IPT</strong>. You can no longer access materials and submit activities unless you apply for Extended Schooling and it is approved by a Mentoring Admin.
+
+
+
+---
+
+Created At: 2026-07-29T12:43:51Z
+Completed At: 2026-07-29T12:43:52Z
+File Path: `file:///c:/Users/rober/dualtech-ojt-portal/public/trainee.html`
+Total Lines: 5395
+Total Bytes: 360942
+Showing lines 977 to 1100
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+977:         function SchoolingTab({ user, profile, masterStatus }) {
+978:             const [scannedData, setScannedData] = useState(null);
+979:             const [scanError, setScanError] = useState("");
+980:             const [loadingLoc, setLoadingLoc] = useState(false);
+981:             const [submitting, setSubmitting] = useState(false);
+982:             const scannerRef = useRef(null);
+983:             const [history, setHistory] = useState([]);
+984: 
+985:             // --- State for Trainee QR Generation ---
+986:             const [showTraineeQR, setShowTraineeQR] = useState(false);
+987:             const [traineeQRData, setTraineeQRData] = useState(null);
+988:             const [generatingQR, setGeneratingQR] = useState(false);
+989:             const [qrGenError, setQrGenError] = useState("");
+990:             const [drEntryDriveUrl, setDrEntryDriveUrl] = useState("");
+991:             // --------------------------------------------
+992: 
+993:             // --- NEW: Online Schooling States ---
+994:             const [traineeRecord, setTraineeRecord] = useState(null);
+995:             const [activeSchedules, setActiveSchedules] = useState([]);
+996: 
+997:             const [onlineForm, setOnlineForm] = useState({
+998:                 vflTopic: '',
+999:                 lsceTopic: '',
+1000:                 notes: ''
+1001:             });
+1002:             const [vflFile, setVflFile] = useState(null);
+1003:             const [lsceFile, setLsceFile] = useState(null);
+1004:             const [drEntryFile, setDrEntryFile] = useState(null); // Added state for DR Entry
+1005:             const [submittingOnline, setSubmittingOnline] = useState(false);
+1006:             const [venues, setVenues] = useState([]);
+1007: 
+1008:             // --- NEW: Disputes States ---
+1009:             const [disputes, setDisputes] = useState([]);
+1010:             const [showDisputeModal, setShowDisputeModal] = useState(false);
+1011:             const [disputeWeek, setDisputeWeek] = useState(null);
+1012:             const [disputeReason, setDisputeReason] = useState("");
+1013:             const [submittingDispute, setSubmittingDispute] = useState(false);
+1014: 
+1015:             // --- NEW: Extended Schooling States ---
+1016:             const [extendedReq, setExtendedReq] = useState(null);
+1017:             const [loadingExtReq, setLoadingExtReq] = useState(true);
+1018:             const [requestingExt, setRequestingExt] = useState(false);
+1019: 
+1020:             // --- HELPER FUNCTIONS FOR SCHOOLING TAB ---
+1021:             const getDistanceFromLatLonInM = (lat1, lon1, lat2, lon2) => {
+1022:                 const R = 6371e3;
+1023:                 const p1 = lat1 * Math.PI / 180;
+1024:                 const p2 = lat2 * Math.PI / 180;
+1025:                 const dp = (lat2 - lat1) * Math.PI / 180;
+1026:                 const dl = (lon2 - lon1) * Math.PI / 180;
+1027:                 const a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+1028:                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+1029:                 return R * c;
+1030:             };
+1031: 
+1032:             const getLocalYYYYMMDD = (date) => {
+1033:                 const d = new Date(date);
+1034:                 d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+1035:                 return d.toISOString().split('T')[0];
+1036:             };
+1037: 
+1038:             // --- Extended Schooling Request Logic ---
+1039:             useEffect(() => {
+1040:                 if (!user?.uid) {
+1041:                     setLoadingExtReq(false);
+1042:                     return;
+1043:                 }
+1044:                 const q = query(
+1045:                     collection(db, 'artifacts', appId, 'public', 'data', 'extended_schooling_requests'),
+1046:                     where('userId', '==', user.uid)
+1047:                 );
+1048:                 const unsub = onSnapshot(q, (snap) => {
+1049:                     if (!snap.empty) {
+1050:                         const reqData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+1051:                         reqData.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+1052:                         setExtendedReq(reqData[0]);
+1053:                     } else {
+1054:                         setExtendedReq(null);
+1055:                     }
+1056:                     setLoadingExtReq(false);
+1057:                 });
+1058:                 return () => unsub();
+1059:             }, [user?.uid]);
+1060: 
+1061:             const handleRequestExtendedSchooling = async () => {
+1062:                 try {
+1063:                     setRequestingExt(true);
+1064:                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'extended_schooling_requests'), {
+1065:                         userId: user.uid,
+1066:                         studentId: profile.studentId || profile["Student ID#"],
+1067:                         studentName: `${profile.given} ${profile.family}`.trim(),
+1068:                         companyName: profile.companyName || profile.company || "Unassigned",
+1069:                         status: 'Pending',
+1070:                         timestamp: new Date().toISOString()
+1071:                     });
+1072:                     showToast("Extended Schooling Request submitted successfully.", "success");
+1073:                 } catch (error) {
+1074:                     console.error("Error requesting extended schooling:", error);
+1075:                     showToast("Failed to submit request.", "error");
+1076:                 } finally {
+1077:                     setRequestingExt(false);
+1078:                 }
+1079:             };
+1080:             // ----------------------------------------
+1081: 
+1082:             // 1. Fetch Trainee Record to check assigned venue[cite: 3, 4]
+1083:             useEffect(() => {
+1084:                 const currentStudentId = profile.studentId || profile["Student ID#"];
+1085:                 if (!currentStudentId) return;
+1086: 
+1087:                 const q = query(
+1088:                     collection(db, 'artifacts', appId, 'public', 'data', 'trainees'),
+1089:                     where('studentId', '==', currentStudentId)
+1090:                 );
+1091: 
+1092:                 const unsub = onSnapshot(q, snap => {
+1093:                     if (!snap.empty) {
+1094:                         setTraineeRecord({ id: snap.docs[0].id, ...snap.docs[0].data() });
+1095:                     }
+1096:                 });
+1097:                 return () => unsub();
+1098:             }, [profile.studentId, profile["Student ID#"]]);
+1099: 
+1100:             useEffect(() => {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+---
+
+Created At: 2026-07-29T09:18:10Z
+Completed At: 2026-07-29T09:18:11Z
+
+				The command completed successfully.
+				Output:
+				
+trainee.html:940:        function SchoolingTab({ user, profile }) {
+trainee.html:956:            // --- NEW: Online Schooling States ---
+trainee.html:971:            // --- HELPER FUNCTIONS FOR SCHOOLING TAB ---
+trainee.html:1014:            // 2. Fetch Active Schedules from 'schooling_calendar' based on viewable dates[cite: 3, 
+4]
+trainee.html:1016:                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 
+'schooling_calendar'));
+trainee.html:1021:                        .filter(act => act.activityType === 'Schooling' && act.viewableFrom <= 
+todayStr && act.viewableUntil >= todayStr);
+trainee.html:1063:            const completedOnlineLogs = history.filter(h => h.activityType === 'Online Schooling');
+trainee.html:1314:                        activityType: 'Online Schooling',
+trainee.html:1327:                    alert("Online Schooling submitted successfully via Google Apps Script!");
+trainee.html:1342:                const locationText = `${record.hub || ''} ${record.venue || ''} 
+${record.rawSheetData?.['Schooling / Mentoring Hub'] || ''}`;
+trainee.html:1352:            const schoolingRecords = history.filter(h => {
+trainee.html:1353:                const locationText = `${h.hub || ''} ${h.venue || ''} ${h.rawSheetData?.['Schooling 
+/ Mentoring Hub'] || ''}`;
+trainee.html:1356:                const isSchooling = combinedText.includes('SCHOOLING') ||
+trainee.html:1361:                if (!isSchooling) return false;
+trainee.html:1365:            const attendedCount = schoolingRecords.reduce((total, h) => {
+trainee.html:1375:                        <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 flex 
+items-center gap-2"><BookOpen className="text-emerald-600" /> Schooling & PDS</h2>
+trainee.html:1378:                                ? "Complete your online schooling activities and submit your output 
+here."
+trainee.html:1384:                        /* ================= ONLINE SCHOOLING VIEW ================= */
+trainee.html:1393:                                            : "There are currently no active online schooling 
+assignments scheduled for you."}
+trainee.html:1492:                                                {submittingOnline ? <><Loader2 size={18} 
+className="animate-spin" /> Submitting Activities...</> : 'Submit Online Schooling'}
+trainee.html:1570:                            <h3 className="font-bold text-slate-800 dark:text-slate-100 flex 
+items-center gap-2"><History size={18} className="text-emerald-600" /> Schooling History</h3>
+trainee.html:1577:                            {schoolingRecords.length === 0 ? <p className="text-sm text-slate-400 
+italic text-center py-4">No attendance records found.</p> : schoolingRecords.map(h => {
+trainee.html:1580:                                const hubLocation = h.hub || h.venue || h.rawSheetData?.['Schooling 
+/ Mentoring Hub'] || 'Hub Not Specified';
+trainee.html:1588:                                                {h.topic || h.activityType || 'Schooling Log'}
+trainee.html:2987:                // SET DEFAULTS: Saturday for Schooling, Sunday for Rest
+trainee.html:2988:                let foundSchooling = "saturday";
+trainee.html:3001:                        if (traineeData.schoolingDay && traineeData.schoolingDay.trim() !== '') {
+trainee.html:3002:                            foundSchooling = String(traineeData.schoolingDay).trim().toLowerCase();
+trainee.html:3013:                const isSchooling = (foundSchooling === currentDay);
+trainee.html:3016:                if (isSchooling || isRest) {
+trainee.html:3164:                            const dayType = (profile.schoolingDay?.toLowerCase() === currentDayStr) 
+? 'Schooling Day' : 'Rest Day';
+trainee.html:3994:                            <button onClick={() => setActiveTab('schooling')} className={`w-full 
+flex items-center gap-3 p-4 rounded-xl font-bold transition-colors ${activeTab === 'schooling' ? 'bg-emerald-50 
+text-blue-700' : 'text-slate-600 hover:bg-slate-50 dark:bg-slate-800'}`}><BookOpen size={20} /> Schooling</button>
+trainee.html:4010:                                { id: 'schooling', icon: BookOpen, label: 'School' },
+trainee.html:4547:                        {activeTab === 'schooling' && <SchoolingTab user={user} profile={profile} />}
+trainee.html:4850:                                                <strong> {new Date().toLocaleDateString('en-US', { 
+weekday: 'long' }).toLowerCase() === (profile.schoolingDay || 'saturday').toLowerCase() ? ' Schooling Day' : ' Rest 
+Day'}</strong>.
+trainee.html:4927:                                            <option value="Schooling">Schooling</option>
+
+
+
+
+
+---
+
+Created At: 2026-07-29T09:18:38Z
+Completed At: 2026-07-29T09:18:38Z
+File Path: `file:///c:/Users/rober/dualtech-ojt-portal/public/trainee.html`
+Total Lines: 5094
+Total Bytes: 341372
+Showing lines 935 to 990
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+935:             );
+936:         }
+937: 
+938: 
+939: 
+940:         function SchoolingTab({ user, profile }) {
+941:             const [scannedData, setScannedData] = useState(null);
+942:             const [scanError, setScanError] = useState("");
+943:             const [loadingLoc, setLoadingLoc] = useState(false);
+944:             const [submitting, setSubmitting] = useState(false);
+945:             const scannerRef = useRef(null);
+946:             const [history, setHistory] = useState([]);
+947: 
+948:             // --- State for Trainee QR Generation ---
+949:             const [showTraineeQR, setShowTraineeQR] = useState(false);
+950:             const [traineeQRData, setTraineeQRData] = useState(null);
+951:             const [generatingQR, setGeneratingQR] = useState(false);
+952:             const [qrGenError, setQrGenError] = useState("");
+953:             const [drEntryDriveUrl, setDrEntryDriveUrl] = useState("");
+954:             // --------------------------------------------
+955: 
+956:             // --- NEW: Online Schooling States ---
+957:             const [traineeRecord, setTraineeRecord] = useState(null);
+958:             const [activeSchedules, setActiveSchedules] = useState([]);
+959: 
+960:             const [onlineForm, setOnlineForm] = useState({
+961:                 vflTopic: '',
+962:                 lsceTopic: '',
+963:                 notes: ''
+964:             });
+965:             const [vflFile, setVflFile] = useState(null);
+966:             const [lsceFile, setLsceFile] = useState(null);
+967:             const [drEntryFile, setDrEntryFile] = useState(null); // Added state for DR Entry
+968:             const [submittingOnline, setSubmittingOnline] = useState(false);
+969:             const [venues, setVenues] = useState([]);
+970: 
+971:             // --- HELPER FUNCTIONS FOR SCHOOLING TAB ---
+972:             const getDistanceFromLatLonInM = (lat1, lon1, lat2, lon2) => {
+973:                 const R = 6371e3;
+974:                 const p1 = lat1 * Math.PI / 180;
+975:                 const p2 = lat2 * Math.PI / 180;
+976:                 const dp = (lat2 - lat1) * Math.PI / 180;
+977:                 const dl = (lon2 - lon1) * Math.PI / 180;
+978:                 const a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+979:                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+980:                 return R * c;
+981:             };
+982: 
+983:             const getLocalYYYYMMDD = (date) => {
+984:                 const d = new Date(date);
+985:                 d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+986:                 return d.toISOString().split('T')[0];
+987:             };
+988: 
+989:             // 1. Fetch Trainee Record to check assigned venue[cite: 3, 4]
+990:             useEffect(() => {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+---
+
+Created At: 2026-07-29T09:20:30Z
+Completed At: 2026-07-29T09:20:30Z
+File Path: `file:///c:/Users/rober/dualtech-ojt-portal/public/trainee.html`
+Total Lines: 5094
+Total Bytes: 341372
+Showing lines 930 to 990
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+930:                                 </div>
+931:                             </div>
+932:                         )}
+933:                     </div>
+934:                 </div>
+935:             );
+936:         }
+937: 
+938: 
+939: 
+940:         function SchoolingTab({ user, profile }) {
+941:             const [scannedData, setScannedData] = useState(null);
+942:             const [scanError, setScanError] = useState("");
+943:             const [loadingLoc, setLoadingLoc] = useState(false);
+944:             const [submitting, setSubmitting] = useState(false);
+945:             const scannerRef = useRef(null);
+946:             const [history, setHistory] = useState([]);
+947: 
+948:             // --- State for Trainee QR Generation ---
+949:             const [showTraineeQR, setShowTraineeQR] = useState(false);
+950:             const [traineeQRData, setTraineeQRData] = useState(null);
+951:             const [generatingQR, setGeneratingQR] = useState(false);
+952:             const [qrGenError, setQrGenError] = useState("");
+953:             const [drEntryDriveUrl, setDrEntryDriveUrl] = useState("");
+954:             // --------------------------------------------
+955: 
+956:             // --- NEW: Online Schooling States ---
+957:             const [traineeRecord, setTraineeRecord] = useState(null);
+958:             const [activeSchedules, setActiveSchedules] = useState([]);
+959: 
+960:             const [onlineForm, setOnlineForm] = useState({
+961:                 vflTopic: '',
+962:                 lsceTopic: '',
+963:                 notes: ''
+964:             });
+965:             const [vflFile, setVflFile] = useState(null);
+966:             const [lsceFile, setLsceFile] = useState(null);
+967:             const [drEntryFile, setDrEntryFile] = useState(null); // Added state for DR Entry
+968:             const [submittingOnline, setSubmittingOnline] = useState(false);
+969:             const [venues, setVenues] = useState([]);
+970: 
+971:             // --- HELPER FUNCTIONS FOR SCHOOLING TAB ---
+972:             const getDistanceFromLatLonInM = (lat1, lon1, lat2, lon2) => {
+973:                 const R = 6371e3;
+974:                 const p1 = lat1 * Math.PI / 180;
+975:                 const p2 = lat2 * Math.PI / 180;
+976:                 const dp = (lat2 - lat1) * Math.PI / 180;
+977:                 const dl = (lon2 - lon1) * Math.PI / 180;
+978:                 const a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+979:                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+980:                 return R * c;
+981:             };
+982: 
+983:             const getLocalYYYYMMDD = (date) => {
+984:                 const d = new Date(date);
+985:                 d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+986:                 return d.toISOString().split('T')[0];
+987:             };
+988: 
+989:             // 1. Fetch Trainee Record to check assigned venue[cite: 3, 4]
+990:             useEffect(() => {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+---
+
+Created At: 2026-07-29T09:20:58Z
+Completed At: 2026-07-29T09:20:58Z
+File Path: `file:///c:/Users/rober/dualtech-ojt-portal/public/trainee.html`
+Total Lines: 5094
+Total Bytes: 341400
+Showing lines 938 to 990
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+938: 
+939: 
+940:         function SchoolingTab({ user, profile }) {
+941:             const [scannedData, setScannedData] = useState(null);
+942:             const [scanError, setScanError] = useState("");
+943:             const [loadingLoc, setLoadingLoc] = useState(false);
+944:             const [submitting, setSubmitting] = useState(false);
+945:             const scannerRef = useRef(null);
+946:             const [history, setHistory] = useState([]);
+947: 
+948:             // --- State for Trainee QR Generation ---
+949:             const [showTraineeQR, setShowTraineeQR] = useState(false);
+950:             const [traineeQRData, setTraineeQRData] = useState(null);
+951:             const [generatingQR, setGeneratingQR] = useState(false);
+952:             const [qrGenError, setQrGenError] = useState("");
+953:             const [drEntryDriveUrl, setDrEntryDriveUrl] = useState("");
+954:             // --------------------------------------------
+955: 
+956:             // --- NEW: Online Schooling States ---
+957:             const [traineeRecord, setTraineeRecord] = useState(null);
+958:             const [activeSchedules, setActiveSchedules] = useState([]);
+959: 
+960:             const [onlineForm, setOnlineForm] = useState({
+961:                 vflTopic: '',
+962:                 lsceTopic: '',
+963:                 notes: ''
+964:             });
+965:             const [vflFile, setVflFile] = useState(null);
+966:             const [lsceFile, setLsceFile] = useState(null);
+967:             const [drEntryFile, setDrEntryFile] = useState(null); // Added state for DR Entry
+968:             const [submittingOnline, setSubmittingOnline] = useState(false);
+969:             const [venues, setVenues] = useState([]);
+970: 
+971:             // --- HELPER FUNCTIONS FOR SCHOOLING TAB ---
+972:             const getDistanceFromLatLonInM = (lat1, lon1, lat2, lon2) => {
+973:                 const R = 6371e3;
+974:                 const p1 = lat1 * Math.PI / 180;
+975:                 const p2 = lat2 * Math.PI / 180;
+976:                 const dp = (lat2 - lat1) * Math.PI / 180;
+977:                 const dl = (lon2 - lon1) * Math.PI / 180;
+978:                 const a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+979:                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+980:                 return R * c;
+981:             };
+982: 
+983:             const getLocalYYYYMMDD = (date) => {
+984:                 const d = new Date(date);
+985:                 d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+986:                 return d.toISOString().split('T')[0];
+987:             };
+988: 
+989:             // 1. Fetch Trainee Record to check assigned venue[cite: 3, 4]
+990:             useEffect(() => {
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+---
+
+Created At: 2026-07-29T10:05:34Z
+Completed At: 2026-07-29T10:05:34Z
+File Path: `file:///c:/Users/rober/dualtech-ojt-portal/public/trainee.html`
+Total Lines: 5210
+Total Bytes: 349002
+Showing lines 930 to 1000
+The following code has been modified to include a line number before every line, in the format: <line_number>: <original_line>. Please note that any changes targeting the original code should remove the line number, colon, and leading space.
+930:                                 </div>
+931:                             </div>
+932:                         )}
+933:                     </div>
+934:                 </div>
+935:             );
+936:         }
+937: 
+938: 
+939: 
+940:         function SchoolingTab({ user, profile, masterStatus }) {
+941:             const [scannedData, setScannedData] = useState(null);
+942:             const [scanError, setScanError] = useState("");
+943:             const [loadingLoc, setLoadingLoc] = useState(false);
+944:             const [submitting, setSubmitting] = useState(false);
+945:             const scannerRef = useRef(null);
+946:             const [history, setHistory] = useState([]);
+947: 
+948:             // --- State for Trainee QR Generation ---
+949:             const [showTraineeQR, setShowTraineeQR] = useState(false);
+950:             const [traineeQRData, setTraineeQRData] = useState(null);
+951:             const [generatingQR, setGeneratingQR] = useState(false);
+952:             const [qrGenError, setQrGenError] = useState("");
+953:             const [drEntryDriveUrl, setDrEntryDriveUrl] = useState("");
+954:             // --------------------------------------------
+955: 
+956:             // --- NEW: Online Schooling States ---
+957:             const [traineeRecord, setTraineeRecord] = useState(null);
+958:             const [activeSchedules, setActiveSchedules] = useState([]);
+959: 
+960:             const [onlineForm, setOnlineForm] = useState({
+961:                 vflTopic: '',
+962:                 lsceTopic: '',
+963:                 notes: ''
+964:             });
+965:             const [vflFile, setVflFile] = useState(null);
+966:             const [lsceFile, setLsceFile] = useState(null);
+967:             const [drEntryFile, setDrEntryFile] = useState(null); // Added state for DR Entry
+968:             const [submittingOnline, setSubmittingOnline] = useState(false);
+969:             const [venues, setVenues] = useState([]);
+970: 
+971:             // --- NEW: Extended Schooling States ---
+972:             const [extendedReq, setExtendedReq] = useState(null);
+973:             const [loadingExtReq, setLoadingExtReq] = useState(true);
+974:             const [requestingExt, setRequestingExt] = useState(false);
+975: 
+976:             // --- HELPER FUNCTIONS FOR SCHOOLING TAB ---
+977:             const getDistanceFromLatLonInM = (lat1, lon1, lat2, lon2) => {
+978:                 const R = 6371e3;
+979:                 const p1 = lat1 * Math.PI / 180;
+980:                 const p2 = lat2 * Math.PI / 180;
+981:                 const dp = (lat2 - lat1) * Math.PI / 180;
+982:                 const dl = (lon2 - lon1) * Math.PI / 180;
+983:                 const a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+984:                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+985:                 return R * c;
+986:             };
+987: 
+988:             const getLocalYYYYMMDD = (date) => {
+989:                 const d = new Date(date);
+990:                 d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+991:                 return d.toISOString().split('T')[0];
+992:             };
+993: 
+994:             // --- Extended Schooling Request Logic ---
+995:             useEffect(() => {
+996:                 if (!user?.uid) {
+997:                     setLoadingExtReq(false);
+998:                     return;
+999:                 }
+1000:                 const q = query(
+The above content does NOT show the entire file contents. If you need to view any lines of the file which were not shown to complete your task, call this tool again to view those lines.
+
+
+---
+
+Created At: 2026-07-29T08:53:22Z
+Completed At: 2026-07-29T08:53:23Z
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":940,"LineContent":"        function SchoolingTab({ user, profile }) {"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":956,"LineContent":"            // --- NEW: Online Schooling States ---"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":971,"LineContent":"            // --- HELPER FUNCTIONS FOR SCHOOLING TAB ---"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1014,"LineContent":"            // 2. Fetch Active Schedules from 'schooling_calendar' based on viewable dates[cite: 3, 4]"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1016,"LineContent":"                const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'schooling_calendar'));"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1021,"LineContent":"                        .filter(act =\u003e act.activityType === 'Schooling' \u0026\u0026 act.viewableFrom \u003c= todayStr \u0026\u0026 act.viewableUntil \u003e= todayStr);"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1063,"LineContent":"            const completedOnlineLogs = history.filter(h =\u003e h.activityType === 'Online Schooling');"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1314,"LineContent":"                        activityType: 'Online Schooling',"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1327,"LineContent":"                    alert(\"Online Schooling submitted successfully via Google Apps Script!\");"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1342,"LineContent":"                const locationText = `${record.hub || ''} ${record.venue || ''} ${record.rawSheetData?.['Schooling / Mentoring Hub'] || ''}`;"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1352,"LineContent":"            const schoolingRecords = history.filter(h =\u003e {"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1353,"LineContent":"                const locationText = `${h.hub || ''} ${h.venue || ''} ${h.rawSheetData?.['Schooling / Mentoring Hub'] || ''}`;"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1356,"LineContent":"                const isSchooling = combinedText.includes('SCHOOLING') ||"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1361,"LineContent":"                if (!isSchooling) return false;"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1365,"LineContent":"            const attendedCount = schoolingRecords.reduce((total, h) =\u003e {"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1375,"LineContent":"                        \u003ch2 className=\"text-2xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2\"\u003e\u003cBookOpen className=\"text-emerald-600\" /\u003e Schooling \u0026 PDS\u003c/h2\u003e"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1378,"LineContent":"                                ? \"Complete your online schooling activities and submit your output here.\""}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1384,"LineContent":"                        /* ================= ONLINE SCHOOLING VIEW ================= */"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1393,"LineContent":"                                            : \"There are currently no active online schooling assignments scheduled for you.\"}"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1492,"LineContent":"                                                {submittingOnline ? \u003c\u003e\u003cLoader2 size={18} className=\"animate-spin\" /\u003e Submitting Activities...\u003c/\u003e : 'Submit Online Schooling'}"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1570,"LineContent":"                            \u003ch3 className=\"font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2\"\u003e\u003cHistory size={18} className=\"text-emerald-600\" /\u003e Schooling History\u003c/h3\u003e"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1577,"LineContent":"                            {schoolingRecords.length === 0 ? \u003cp className=\"text-sm text-slate-400 italic text-center py-4\"\u003eNo attendance records found.\u003c/p\u003e : schoolingRecords.map(h =\u003e {"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1580,"LineContent":"                                const hubLocation = h.hub || h.venue || h.rawSheetData?.['Schooling / Mentoring Hub'] || 'Hub Not Specified';"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":1588,"LineContent":"                                                {h.topic || h.activityType || 'Schooling Log'}"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":2987,"LineContent":"                // SET DEFAULTS: Saturday for Schooling, Sunday for Rest"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":2988,"LineContent":"                let foundSchooling = \"saturday\";"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":3001,"LineContent":"                        if (traineeData.schoolingDay \u0026\u0026 traineeData.schoolingDay.trim() !== '') {"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":3002,"LineContent":"                            foundSchooling = String(traineeData.schoolingDay).trim().toLowerCase();"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":3013,"LineContent":"                const isSchooling = (foundSchooling === currentDay);"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":3016,"LineContent":"                if (isSchooling || isRest) {"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":3164,"LineContent":"                            const dayType = (profile.schoolingDay?.toLowerCase() === currentDayStr) ? 'Schooling Day' : 'Rest Day';"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":3994,"LineContent":"                            \u003cbutton onClick={() =\u003e setActiveTab('schooling')} className={`w-full flex items-center gap-3 p-4 rounded-xl font-bold transition-colors ${activeTab === 'schooling' ? 'bg-emerald-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50 dark:bg-slate-800'}`}\u003e\u003cBookOpen size={20} /\u003e Schooling\u003c/button\u003e"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":4010,"LineContent":"                                { id: 'schooling', icon: BookOpen, label: 'School' },"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":4547,"LineContent":"                        {activeTab === 'schooling' \u0026\u0026 \u003cSchoolingTab user={user} profile={profile} /\u003e}"}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":4850,"LineContent":"                                                \u003cstrong\u003e {new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() === (profile.schoolingDay || 'saturday').toLowerCase() ? ' Schooling Day' : ' Rest Day'}\u003c/strong\u003e."}
+{"File":"c:\\Users\\rober\\dualtech-ojt-portal\\public\\trainee.html","LineNumber":4927,"LineContent":"                                            \u003coption value=\"Schooling\"\u003eSchooling\u003c/option\u003e"}
+
+---
+

@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Portal</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://www.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <link rel="preload" href="https://unpkg.com/@babel/standalone/babel.min.js" as="script">
+    <link rel="preload" href="https://cdn.tailwindcss.com" as="script">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc',
+                            400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1',
+                            800: '#075985', 900: '#0c4a6e'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://cdn.jsdelivr.net/npm/react@18.2.0/+esm",
+            "react-dom": "https://cdn.jsdelivr.net/npm/react-dom@18.2.0/+esm",
+            "react-dom/client": "https://cdn.jsdelivr.net/npm/react-dom@18.2.0/client/+esm",
+            "lucide-react": "https://cdn.jsdelivr.net/npm/lucide-react@0.294.0/+esm",
+            "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
+            "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
+            "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        .splash-screen {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; width: 100vw; background: #f1f5f9; transition: opacity 0.4s ease;
+        }
+        .dark .splash-screen { background: #0f172a; }
+        .splash-logo { width: 72px; height: 72px; object-fit: contain; animation: splash-pulse 1.8s ease-in-out infinite; filter: drop-shadow(0 4px 12px rgba(14, 165, 233, 0.25)); }
+        .splash-ring { position: absolute; width: 110px; height: 110px; border: 3px solid transparent; border-top-color: #0ea5e9; border-radius: 50%; animation: splash-spin 1s linear infinite; }
+        .splash-text { margin-top: 28px; font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #64748b; animation: splash-pulse 1.8s ease-in-out infinite; }
+        .dark .splash-text { color: #94a3b8; }
+        @keyframes splash-spin { to { transform: rotate(360deg); } }
+        @keyframes splash-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 overflow-hidden h-screen w-screen">
+    <div id="root" class="h-full w-full">
+        <div class="splash-screen" id="splash">
+            <div style="position:relative;display:flex;align-items:center;justify-content:center">
+                <img src="dualtech-logo.png" alt="Loading" class="splash-logo" onerror="this.src=''" />
+                <div class="splash-ring"></div>
+            </div>
+            <p class="splash-text">Initializing Executive Portal...</p>
+        </div>
+    </div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect, useMemo } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import {
+            LayoutDashboard, Users, MapPin, Building2, TrendingUp, AlertTriangle, Activity, Settings, 
+            ChevronDown, Loader2, LogOut, Search, Filter, Moon, Sun, Briefcase, FileText, X, Check, Calculator, Eye, AlertCircle, ArrowUpRight
+        } from 'lucide-react';
+        import { initializeApp } from 'firebase/app';
+        import { getFirestore, collection, getDocs, collectionGroup, query, where } from 'firebase/firestore';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAPpy4VcR2uTIPmH01aJ3GvegSDzNNpM9U",
+            authDomain: "dualtech-ojt-portal.firebaseapp.com",
+            projectId: "dualtech-ojt-portal",
+            storageBucket: "dualtech-ojt-portal.firebasestorage.app",
+            messagingSenderId: "255242185978",
+            appId: "1:255242185978:web:2f07c554fad2e3a78ead43"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const APP_ID = 'dualtech-ojt-portal';
+
+        // ==========================================
+        // SERVICES: SCORING ENGINE
+        // ==========================================
+        const calculateCompanyScore = (metrics, weights) => {
+            const {
+                absencesIpt = 0,
+                absencesRec = 0,
+                openConcerns = 0,
+                averageRate = 5.0,
+                maxRate = 5.0,
+                tpAvailable = 0,
+                tpImplementation = 1
+            } = metrics;
+
+            const { w1 = 1.0, w2 = 1.5, w3 = 1.0, w4 = 2.0 } = weights;
+
+            const absenceRisk = w1 * (absencesIpt + absencesRec);
+            const concernRisk = w2 * openConcerns;
+            const performanceRisk = w3 * Math.max(0, maxRate - averageRate);
+            const trainingPlanRisk = w4 * Math.max(0, 5 - (tpAvailable * tpImplementation));
+
+            const totalScore = Math.round((absenceRisk + concernRisk + performanceRisk + trainingPlanRisk) * 10) / 10;
+
+            let tier = 'Low';
+            let badgeColor = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200';
+            
+            if (totalScore >= 15) {
+                tier = 'High';
+                badgeColor = 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 border-rose-200';
+            } else if (totalScore >= 7) {
+                tier = 'Medium';
+                badgeColor = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200';
+            }
+
+            return { 
+                totalScore, 
+                tier, 
+                badgeColor, 
+                breakdown: { absenceRisk, concernRisk, performanceRisk, trainingPlanRisk } 
+            };
+        };
+
+        // ==========================================
+        // COMPONENTS
+        // ==========================================
+
+        function Navigation({ isDarkMode, setIsDarkMode }) {
+            return (
+                <nav className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between px-6 shrink-0 z-10 relative shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-primary-600 p-2 rounded-lg">
+                            <TrendingUp className="text-white" size={20} />
+                        </div>
+                        <div>
+                            <h1 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">Executive Prioritization Portal</h1>
+                            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Dualtech Training Center</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                        </button>
+                        <div className="h-8 w-px bg-slate-200 dark:bg-slate-700"></div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/50 flex items-center justify-center text-primary-600 dark:text-primary-400 font-bold">
+                                EX
+                            </div>
+                            <span className="text-sm font-medium hidden sm:block">Executive Mode</span>
+                        </div>
+                    </div>
+                </nav>
+            );
+        }
+
+        function KpiCards({ data }) {
+            const highPriority = data.filter(c => c.scoreData.tier === 'High').length;
+            const mediumPriority = data.filter(c => c.scoreData.tier === 'Medium').length;
+            const totalConcerns = data.reduce((sum, c) => sum + (c.metrics.openConcerns || 0), 0);
+            const totalTrainees = data.reduce((sum, c) => sum + (c.metrics.activeTrainees || 0), 0);
+
+            const cards = [
+                { label: 'Partner Companies', value: data.length, icon: Building2, color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/20' },
+                { label: 'High Priority (Immediate)', value: highPriority, icon: AlertTriangle, color: 'text-rose-500', bg: 'bg-rose-100 dark:bg-rose-900/20' },
+                { label: 'Medium Priority (Watchlist)', value: mediumPriority, icon: Activity, color: 'text-amber-500', bg: 'bg-amber-100 dark:bg-amber-900/20' },
+                { label: 'Active Concerns', value: totalConcerns, icon: FileText, color: 'text-violet-500', bg: 'bg-violet-100 dark:bg-violet-900/20' }
+            ];
+
+            return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    {cards.map((card, i) => (
+                        <div key={i} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+                            <div>
+                                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">{card.label}</p>
+                                <p className="text-3xl font-bold text-slate-800 dark:text-white">{card.value}</p>
+                            </div>
+                            <div className={`p-3 rounded-xl ${card.bg} ${card.color}`}>
+                                <card.icon size={24} strokeWidth={2.5} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        function FormulaConfig({ weights, setWeights, onClose }) {
+            return (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                            <h3 className="font-bold text-lg flex items-center gap-2"><Calculator size={20} className="text-primary-500" /> Adjust Scoring Weights</h3>
+                            <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-full"><X size={20} /></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <p className="text-sm text-slate-500 mb-4">Adjust the multipliers used in the Risk-Based Prioritization Index. Changes reflect instantly.</p>
+                            
+                            {[
+                                { key: 'w1', label: 'Absence Risk (w1)', desc: 'Multiplier for trainee absences.' },
+                                { key: 'w2', label: 'Concern Risk (w2)', desc: 'Multiplier for unresolved issues.' },
+                                { key: 'w3', label: 'Performance Risk (w3)', desc: 'Multiplier for grade deficits.' },
+                                { key: 'w4', label: 'Training Plan Risk (w4)', desc: 'Multiplier for lack of ASTP implementation.' }
+                            ].map((w) => (
+                                <div key={w.key} className="flex flex-col gap-1">
+                                    <div className="flex justify-between items-center">
+                                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">{w.label}</label>
+                                        <span className="text-sm font-bold text-primary-600 bg-primary-50 dark:bg-primary-900/30 px-2 py-0.5 rounded">{weights[w.key].toFixed(1)}</span>
+                                    </div>
+                                    <p className="text-xs text-slate-500">{w.desc}</p>
+                                    <input 
+                                        type="range" 
+                                        min="0" max="5" step="0.1" 
+                                        value={weights[w.key]}
+                                        onChange={(e) => setWeights({ ...weights, [w.key]: parseFloat(e.target.value) })}
+                                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer dark:bg-slate-700 accent-primary-500 mt-1"
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                        <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex justify-end">
+                            <button onClick={onClose} className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-medium transition-colors">Apply & Close</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function CompanyDrilldown({ company, onClose }) {
+            const b = company.scoreData.breakdown;
+            
+            return (
+                <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex justify-between items-start">
+                            <div>
+                                <div className="flex items-center gap-3 mb-1">
+                                    <h2 className="text-2xl font-black text-slate-800 dark:text-white">{company.name}</h2>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${company.scoreData.badgeColor}`}>
+                                        {company.scoreData.tier} Priority
+                                    </span>
+                                </div>
+                                <p className="text-slate-500 text-sm flex items-center gap-2"><MapPin size={14}/> {company.address || 'Address not specified'}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm text-slate-500 font-medium uppercase tracking-wider mb-1">Index Score</p>
+                                <p className="text-4xl font-black text-slate-800 dark:text-white">{company.scoreData.totalScore.toFixed(1)}</p>
+                            </div>
+                        </div>
+                        
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 dark:bg-slate-900/50">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-2"><Calculator size={16}/> Score Breakdown</h3>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                                        <span className="text-sm text-slate-600 dark:text-slate-400">Absence Risk</span>
+                                        <span className="font-bold text-slate-800 dark:text-slate-200">{b.absenceRisk.toFixed(1)} pts</span>
+                                    </div>
+                                    <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                                        <span className="text-sm text-slate-600 dark:text-slate-400">Concern Risk</span>
+                                        <span className="font-bold text-slate-800 dark:text-slate-200">{b.concernRisk.toFixed(1)} pts</span>
+                                    </div>
+                                    <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                                        <span className="text-sm text-slate-600 dark:text-slate-400">Performance Risk</span>
+                                        <span className="font-bold text-slate-800 dark:text-slate-200">{b.performanceRisk.toFixed(1)} pts</span>
+                                    </div>
+                                    <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                                        <span className="text-sm text-slate-600 dark:text-slate-400">Training Plan Risk</span>
+                                        <span className="font-bold text-slate-800 dark:text-slate-200">{b.trainingPlanRisk.toFixed(1)} pts</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-2"><Activity size={16}/> Raw Metrics</h3>
+                                <div className="space-y-2">
+                                    <p className="text-sm text-slate-600 dark:text-slate-400 flex justify-between">Active Trainees: <span className="font-bold text-slate-800 dark:text-slate-200">{company.metrics.activeTrainees}</span></p>
+                                    <p className="text-sm text-slate-600 dark:text-slate-400 flex justify-between">Total Absences: <span className="font-bold text-slate-800 dark:text-slate-200">{(company.metrics.absencesIpt + company.metrics.absencesRec)}</span></p>
+                                    <p className="text-sm text-slate-600 dark:text-slate-400 flex justify-between">Open Concerns: <span className="font-bold text-slate-800 dark:text-slate-200">{company.metrics.openConcerns}</span></p>
+                                    <p className="text-sm text-slate-600 dark:text-slate-400 flex justify-between">Avg Performance: <span className="font-bold text-slate-800 dark:text-slate-200">{company.metrics.averageRate.toFixed(2)} / {company.metrics.maxRate}</span></p>
+                                    <p className="text-sm text-slate-600 dark:text-slate-400 flex justify-between">Training Plan Status: <span className="font-bold text-slate-800 dark:text-slate-200">{company.metrics.tpAvailable ? 'Available' : 'Missing'}</span></p>
+                                </div>
+                                
+                                <div className="mt-6">
+                                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2">Assigned Trainees ({company.traineesList.length})</h3>
+                                    <div className="max-h-40 overflow-y-auto custom-scrollbar pr-2 space-y-1">
+                                        {company.traineesList.length > 0 ? company.traineesList.map((t, i) => (
+                                            <div key={i} className="flex justify-between items-center text-xs p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded shadow-sm">
+                                                <span className="font-semibold text-slate-700 dark:text-slate-300 truncate pr-2">{t.name}</span>
+                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${t.status === 'Deployed' || t.status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400'}`}>{t.status || 'Active'}</span>
+                                            </div>
+                                        )) : <p className="text-sm text-slate-500 italic">No trainees assigned</p>}
+                                    </div>
+                                </div>
+                                
+                                <div className="mt-6">
+                                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2">Assigned ICs</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {company.ics.length > 0 ? company.ics.map((ic, i) => (
+                                            <span key={i} className="px-2 py-1 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-md text-xs font-semibold border border-blue-200 dark:border-blue-800">{ic}</span>
+                                        )) : <span className="text-sm text-slate-500 italic">No assigned coordinators found</span>}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex justify-between items-center">
+                            <button onClick={onClose} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg font-medium transition-colors">Close</button>
+                            <button className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm">
+                                <AlertCircle size={18} /> Trigger Intervention Request
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function App() {
+            const [isDarkMode, setIsDarkMode] = useState(true);
+            const [loading, setLoading] = useState(true);
+            const [loadingText, setLoadingText] = useState("Initializing Data Aggregator...");
+            const [progressMessage, setProgressMessage] = useState("");
+            const [companies, setCompanies] = useState([]);
+            const [searchQuery, setSearchQuery] = useState('');
+            const [tierFilter, setTierFilter] = useState('All');
+            const [showFormulaConfig, setShowFormulaConfig] = useState(false);
+            const [selectedCompany, setSelectedCompany] = useState(null);
+
+            const [weights, setWeights] = useState({
+                w1: 1.0,
+                w2: 1.5,
+                w3: 1.0,
+                w4: 2.0
+            });
+
+            // Effect to manage dark mode class on html tag
+            useEffect(() => {
+                if (isDarkMode) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            }, [isDarkMode]);
+
+            // Main Data Aggregation Effect
+            useEffect(() => {
+                const fetchData = async () => {
+                    setLoading(true);
+                    try {
+                        // 1. Fetch Company Profiles (to ensure ALL companies in the DB are populated)
+                        setLoadingText("Fetching Companies...");
+                        const compMap = {}; // Maps companyName to aggregated metrics
+                        const activeTraineesForFetch = [];
+                        const schoolingMap = {}; // Maps studentId to Set of dates
+                        try {
+                            const profilesSnap = await getDocs(collection(db, 'artifacts', APP_ID, 'public', 'data', 'company_profiles'));
+                            profilesSnap.docs.forEach(doc => {
+                                const data = doc.data();
+                                const cName = data.companyName?.trim();
+                                if (cName) {
+                                    if (!compMap[cName]) {
+                                        compMap[cName] = { 
+                                            name: cName, address: data.addresses?.[0]?.address || '',
+                                            activeTrainees: 0, studentIds: [], traineesList: [], ics: new Set(),
+                                            absencesIpt: 0, absencesRec: 0, openConcerns: 0,
+                                            tpAvailable: 0, tpImplementation: 1, totalGrades: 0, gradeCount: 0
+                                        };
+                                    }
+                                    const openConcerns = (data.concerns || []).filter(c => c.status === 'Open' || !c.status).length;
+                                    compMap[cName].openConcerns += openConcerns;
+                                }
+                            });
+                        } catch (e) {
+                            console.error("Error fetching company_profiles:", e);
+                        }
+
+                        // 2. Fetch Trainees (for active counts and listing trainees per company)
+                        setLoadingText("Fetching Trainee Demographics...");
+                        try {
+                            const traineesSnap = await getDocs(collection(db, 'artifacts', APP_ID, 'public', 'data', 'trainees'));
+                            const traineesData = traineesSnap.docs.map(d => d.data());
+                            
+                            traineesData.forEach(t => {
+                                const cNameRaw = t.company || t['Company Name'] || t.companyName;
+                                if (!cNameRaw) return;
+                                const cName = cNameRaw.trim();
+                                if (!compMap[cName]) {
+                                    compMap[cName] = { 
+                                        name: cName, address: t.companyAddress || '',
+                                        activeTrainees: 0, studentIds: [], traineesList: [], ics: new Set(),
+                                        absencesIpt: 0, absencesRec: 0, openConcerns: 0,
+                                        tpAvailable: 0, tpImplementation: 1, totalGrades: 0, gradeCount: 0
+                                    };
+                                }
+                                
+                                const statusRaw = t.status ? t.status.trim().toLowerCase() : '';
+                                const isActive = statusRaw === 'deployed' || statusRaw === 'active' || !statusRaw;
+                                if (isActive) {
+                                    compMap[cName].activeTrainees++;
+                                    
+                                    // Robustly parse registeredAt timestamp
+                                    let regDate = new Date();
+                                    if (t.registeredAt) {
+                                        if (typeof t.registeredAt.toDate === 'function') regDate = t.registeredAt.toDate();
+                                        else if (t.registeredAt.seconds) regDate = new Date(t.registeredAt.seconds * 1000);
+                                        else if (typeof t.registeredAt === 'number') regDate = new Date(t.registeredAt);
+                                        else regDate = new Date(t.registeredAt);
+                                    }
+                                    
+                                    const traineeObj = {
+                                        name: `${t.firstName || ''} ${t.lastName || ''}`.trim() || 'Unknown Trainee',
+                                        studentId: t.studentId,
+                                        uid: t.uid || null,
+                                        status: t.status || 'Active',
+                                        registeredAt: regDate
+                                    };
+                                    
+                                    compMap[cName].traineesList.push(traineeObj);
+                                    activeTraineesForFetch.push({ ...traineeObj, companyName: cName });
+                                }
+                                
+                                if (t.studentId) compMap[cName].studentIds.push(t.studentId);
+                                if (t.assignedIC) compMap[cName].ics.add(t.assignedIC);
+                            });
+                        } catch (e) {
+                            console.error("Error fetching trainees:", e);
+                        }
+
+                        // 3. Fetch Mentoring Attendance (Schooling absences and track dates)
+                        setLoadingText("Aggregating Schooling Absences...");
+                        try {
+                            const mentoringSnap = await getDocs(collection(db, 'artifacts', APP_ID, 'public', 'data', 'mentoring_attendance'));
+                            mentoringSnap.docs.forEach(doc => {
+                                const data = doc.data();
+                                
+                                // Track schooling dates to exclude from incomplete shift calculation
+                                if (data.studentId && data.date) {
+                                    if (!schoolingMap[data.studentId]) schoolingMap[data.studentId] = new Set();
+                                    schoolingMap[data.studentId].add(data.date);
+                                }
+                                
+                                if (data.status === 'Absent' || data.status === 'AWOL' || data.status === 'Lacking') {
+                                    // Find which company this student belongs to
+                                    const cName = Object.keys(compMap).find(k => compMap[k].studentIds.includes(data.studentId));
+                                    if (cName) compMap[cName].absencesRec++;
+                                }
+                            });
+                        } catch (e) {
+                            console.error("Error fetching mentoring_attendance:", e);
+                        }
+
+                        // 4. (Skipped full Attendance Logs fetch here to prevent timeout. Done in background later)
+
+                        // 5. Fetch Company Settings (ASTP availability)
+                        setLoadingText("Checking Training Plan Status...");
+                        try {
+                            const settingsSnap = await getDocs(collection(db, 'artifacts', APP_ID, 'public', 'data', 'company_settings'));
+                            settingsSnap.docs.forEach(doc => {
+                                const data = doc.data();
+                                const cName = data.companyName?.trim() || doc.id.trim();
+                                if (cName && compMap[cName]) {
+                                    compMap[cName].tpAvailable = data.trainingPlanAvailable ? 1 : 0;
+                                    compMap[cName].tpImplementation = data.trainingPlanImplementation || 1; // 1 to 5 scale
+                                }
+                            });
+                        } catch (e) {
+                            console.error("Error fetching company_settings:", e);
+                        }
+
+                        // 6. Fetch Performance Vouchers (Grades)
+                        setLoadingText("Calculating Performance Deficits...");
+                        try {
+                            const perfSnap = await getDocs(collection(db, 'artifacts', APP_ID, 'public', 'data', 'performanceVouchers'));
+                            perfSnap.docs.forEach(doc => {
+                                const data = doc.data();
+                                const cName = Object.keys(compMap).find(k => compMap[k].studentIds.includes(data.studentId));
+                                if (cName && data.grade) {
+                                    compMap[cName].totalGrades += parseFloat(data.grade);
+                                    compMap[cName].gradeCount++;
+                                }
+                            });
+                        } catch (e) {
+                            console.error("Error fetching performanceVouchers:", e);
+                        }
+
+                        // Finalize Metrics mapping
+                        const finalCompanies = Object.values(compMap).map(c => {
+                            const averageRate = c.gradeCount > 0 ? (c.totalGrades / c.gradeCount) : 5.0; // Default max if no grades
+                            return {
+                                name: c.name,
+                                address: c.address,
+                                ics: Array.from(c.ics),
+                                traineesList: c.traineesList,
+                                metrics: {
+                                    activeTrainees: c.activeTrainees,
+                                    absencesIpt: c.absencesIpt,
+                                    absencesRec: c.absencesRec,
+                                    openConcerns: c.openConcerns,
+                                    averageRate: averageRate,
+                                    maxRate: 5.0,
+                                    tpAvailable: c.tpAvailable,
+                                    tpImplementation: c.tpImplementation
+                                }
+                            };
+                        });
+                        
+                        setCompanies(finalCompanies); // Populate ALL companies in the database
+                        setLoading(false);
+                        
+                        // Start Background Processing of Absences
+                        const processAttendance = async () => {
+                            if (activeTraineesForFetch.length === 0) return;
+                            try {
+                                setProgressMessage(`Mapping User IDs... (0 / ${activeTraineesForFetch.length})`);
+                                const uidsMap = {};
+                                const studentIds = activeTraineesForFetch.map(t => t.studentId).filter(Boolean);
+                                const sIdChunks = [];
+                                for (let i = 0; i < studentIds.length; i += 30) { sIdChunks.push(studentIds.slice(i, i + 30)); }
+                                
+                                let mappedCount = 0;
+                                for (const chunk of sIdChunks) {
+                                    const profilesSnap = await getDocs(query(collectionGroup(db, 'profile'), where('studentId', 'in', chunk)));
+                                    profilesSnap.forEach(d => {
+                                        const data = d.data();
+                                        if (data.studentId && data.uid) uidsMap[data.studentId] = data.uid;
+                                    });
+                                    mappedCount += chunk.length;
+                                    setProgressMessage(`Mapping User IDs... (${mappedCount} / ${studentIds.length})`);
+                                }
+                                
+                                let processedCount = 0;
+                                const traineeChunks = [];
+                                for (let i = 0; i < activeTraineesForFetch.length; i += 30) { traineeChunks.push(activeTraineesForFetch.slice(i, i + 30)); }
+                                
+                                const today = new Date();
+                                today.setHours(0,0,0,0);
+                                
+                                for (const chunk of traineeChunks) {
+                                    await Promise.all(chunk.map(async (trainee) => {
+                                        const uid = uidsMap[trainee.studentId] || trainee.uid;
+                                        if (!uid) return;
+                                        
+                                        try {
+                                            const logsSnap = await getDocs(collection(db, 'artifacts', APP_ID, 'users', uid, 'attendanceLogs'));
+                                            const logsData = logsSnap.docs.map(d => d.data());
+                                            
+                                            const logsByDate = {};
+                                            logsData.forEach(l => {
+                                                if(l.date) logsByDate[l.date] = l;
+                                                else if (l.timestamp) {
+                                                    let d;
+                                                    if (typeof l.timestamp.toDate === 'function') d = l.timestamp.toDate();
+                                                    else if (l.timestamp.seconds) d = new Date(l.timestamp.seconds * 1000);
+                                                    else if (l.timestamp.toMillis) d = new Date(l.timestamp.toMillis());
+                                                    else d = new Date(l.timestamp);
+                                                    logsByDate[d.toLocaleDateString('en-CA')] = l;
+                                                }
+                                            });
+                                            
+                                            let incompleteShifts = 0;
+                                            let currentDate = new Date(trainee.registeredAt);
+                                            currentDate.setHours(0,0,0,0);
+                                            
+                                            while(currentDate <= today) {
+                                                if (currentDate.getDay() !== 0) { // Not Sunday
+                                                    const dStr = currentDate.toLocaleDateString('en-CA');
+                                                    const isSchooling = schoolingMap[trainee.studentId] && schoolingMap[trainee.studentId].has(dStr);
+                                                    
+                                                    if (!isSchooling) {
+                                                        const log = logsByDate[dStr];
+                                                        if (!log) {
+                                                            incompleteShifts++; // Missing
+                                                        } else {
+                                                            const tIn = log.timeIn?.seconds ? log.timeIn.seconds * 1000 : (log.timeIn?.toMillis ? log.timeIn.toMillis() : null);
+                                                            const tOut = log.timeOut?.seconds ? log.timeOut.seconds * 1000 : (log.timeOut?.toMillis ? log.timeOut.toMillis() : null);
+                                                            if (tIn && tOut) {
+                                                                const hrs = (tOut - tIn) / (1000 * 60 * 60);
+                                                                if (hrs < 8) incompleteShifts++; // Undertime
+                                                            } else {
+                                                                incompleteShifts++; // Missing timeOut
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                currentDate.setDate(currentDate.getDate() + 1);
+                                            }
+                                            compMap[trainee.companyName].absencesIpt += incompleteShifts;
+                                        } catch (err) {
+                                            console.error("Failed to fetch logs for", uid, err);
+                                        }
+                                    }));
+                                    
+                                    processedCount += chunk.length;
+                                    setProgressMessage(`Calculating absences... (${processedCount} / ${activeTraineesForFetch.length} trainees)`);
+                                    
+                                    // Live update UI
+                                    const updatedCompanies = Object.values(compMap).map(c => {
+                                        const averageRate = c.gradeCount > 0 ? (c.totalGrades / c.gradeCount) : 5.0;
+                                        return {
+                                            name: c.name, address: c.address, ics: Array.from(c.ics), traineesList: c.traineesList,
+                                            metrics: {
+                                                activeTrainees: c.activeTrainees, absencesIpt: c.absencesIpt, absencesRec: c.absencesRec,
+                                                openConcerns: c.openConcerns, averageRate: averageRate, maxRate: 5.0,
+                                                tpAvailable: c.tpAvailable, tpImplementation: c.tpImplementation
+                                            }
+                                        };
+                                    });
+                                    setCompanies(updatedCompanies);
+                                }
+                                setProgressMessage(""); // Finished
+                            } catch (e) {
+                                console.error("Background processing error:", e);
+                                setProgressMessage("");
+                            }
+                        };
+                        
+                        // Fire and forget
+                        processAttendance();
+
+                    } catch (error) {
+                        console.error("Error fetching data:", error);
+                        setLoadingText("Error loading data. Check console.");
+                    }
+                };
+                
+                fetchData();
+            }, []);
+
+            // Memoized scoring and sorting
+            const scoredCompanies = useMemo(() => {
+                return companies.map(c => {
+                    const scoreData = calculateCompanyScore(c.metrics, weights);
+                    return { ...c, scoreData };
+                })
+                .filter(c => {
+                    if (tierFilter !== 'All' && c.scoreData.tier !== tierFilter) return false;
+                    if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+                    return true;
+                })
+                .sort((a, b) => b.scoreData.totalScore - a.scoreData.totalScore); // Sort descending by score
+            }, [companies, weights, tierFilter, searchQuery]);
+
+            if (loading) {
+                return (
+                    <div className="flex flex-col items-center justify-center h-full bg-slate-50 dark:bg-slate-900">
+                        <div style={{position:'relative', display:'flex', alignItems:'center', justifyContent:'center'}}>
+                            <img src="dualtech-logo.png" alt="Loading" className="w-16 h-16 object-contain animate-pulse" onerror="this.src=''" />
+                            <div className="absolute w-24 h-24 border-[3px] border-transparent border-t-primary-500 rounded-full animate-spin"></div>
+                        </div>
+                        <p className="mt-8 text-sm font-bold tracking-widest uppercase text-slate-500 animate-pulse">{loadingText}</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex flex-col h-full w-full bg-slate-50 dark:bg-slate-900">
+                    <Navigation isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} />
+                    
+                    <div className="flex-1 overflow-auto p-4 md:p-6 lg:p-8 custom-scrollbar">
+                        <div className="max-w-7xl mx-auto">
+                            
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                                <div>
+                                    <h2 className="text-2xl font-black text-slate-800 dark:text-white">Priority Matrix</h2>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">Identify and prioritize partner companies requiring intervention.</p>
+                                </div>
+                                <button onClick={() => setShowFormulaConfig(true)} className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-semibold flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm">
+                                    <Settings size={16} /> Adjust Scoring Formula
+                                </button>
+                            </div>
+
+                            <KpiCards data={scoredCompanies} />
+
+                            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col h-[600px]">
+                                {/* Toolbar */}
+                                <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex flex-wrap gap-4 justify-between items-center shrink-0">
+                                    <div className="relative w-full md:w-80">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Search companies..." 
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                                        />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        {['All', 'High', 'Medium', 'Low'].map(tier => (
+                                            <button 
+                                                key={tier}
+                                                onClick={() => setTierFilter(tier)}
+                                                className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors border ${tierFilter === tier ? 'bg-primary-50 text-primary-700 border-primary-200 dark:bg-primary-900/30 dark:text-primary-400 dark:border-primary-800' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 dark:hover:bg-slate-700'}`}
+                                            >
+                                                {tier}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Table */}
+                                <div className="flex-1 overflow-auto custom-scrollbar">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-700">
+                                            <tr>
+                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Company Name</th>
+                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Active Trainees</th>
+                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Total Absences</th>
+                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Open Concerns</th>
+                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Deficit</th>
+                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">TP Rating</th>
+                                                <th className="p-4 text-xs font-bold text-primary-600 dark:text-primary-400 uppercase tracking-wider text-center bg-primary-50/50 dark:bg-primary-900/10">Priority Score</th>
+                                                <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                                            {scoredCompanies.length === 0 ? (
+                                                <tr><td colSpan="8" className="p-8 text-center text-slate-500 italic">No companies match your filters.</td></tr>
+                                            ) : scoredCompanies.map((c, i) => (
+                                                <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                                                    <td className="p-4">
+                                                        <p className="font-bold text-slate-800 dark:text-slate-200">{c.name}</p>
+                                                        <div className="flex items-center gap-1 mt-1">
+                                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${c.scoreData.badgeColor}`}>
+                                                                {c.scoreData.tier} Risk
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 text-center font-medium text-slate-600 dark:text-slate-400">{c.metrics.activeTrainees}</td>
+                                                    <td className="p-4 text-center font-medium text-slate-600 dark:text-slate-400">{(c.metrics.absencesIpt + c.metrics.absencesRec)}</td>
+                                                    <td className="p-4 text-center font-medium text-slate-600 dark:text-slate-400">{c.metrics.openConcerns}</td>
+                                                    <td className="p-4 text-center font-medium text-slate-600 dark:text-slate-400">{(c.metrics.maxRate - c.metrics.averageRate).toFixed(1)}</td>
+                                                    <td className="p-4 text-center font-medium text-slate-600 dark:text-slate-400">{c.metrics.tpAvailable ? `${c.metrics.tpImplementation}/5` : 'N/A'}</td>
+                                                    <td className="p-4 text-center bg-primary-50/30 dark:bg-primary-900/10">
+                                                        <span className="text-lg font-black text-slate-800 dark:text-white">{c.scoreData.totalScore.toFixed(1)}</span>
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <button 
+                                                            onClick={() => setSelectedCompany(c)}
+                                                            className="p-2 text-slate-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/30 rounded-lg transition-colors inline-flex"
+                                                            title="View Details"
+                                                        >
+                                                            <ArrowUpRight size={18} />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {showFormulaConfig && (
+                        <FormulaConfig weights={weights} setWeights={setWeights} onClose={() => setShowFormulaConfig(false)} />
+                    )}
+                    
+                    {selectedCompany && (
+                        <CompanyDrilldown company={selectedCompany} onClose={() => setSelectedCompany(null)} />
+                    )}
+                </div>
+            );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

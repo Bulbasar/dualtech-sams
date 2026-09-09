@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Web Viewer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --iphone-w: 393px;
+            --iphone-h: 852px;
+            --frame-border: 14px;
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-color: #f8fafc;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text-color);
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Control Panel */
+        .sidebar {
+            width: 320px;
+            padding: 24px;
+            background: var(--glass-bg);
+            border-right: 1px solid var(--glass-border);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            z-index: 10;
+        }
+
+        .sidebar h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #cbd5e1;
+        }
+
+        select, input[type="file"], button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+            background: rgba(0, 0, 0, 0.2);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            outline: none;
+            transition: all 0.2s;
+            box-sizing: border-box;
+        }
+        
+        select option {
+            background-color: #1e293b;
+            color: white;
+        }
+
+        select:focus, input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+        
+        input[type="file"]::file-selector-button {
+            background: var(--primary);
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-right: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-family: inherit;
+            font-size: 0.8rem;
+        }
+        
+        input[type="file"]::file-selector-button:hover {
+            background: var(--primary-hover);
+        }
+
+        button {
+            background: var(--primary);
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+
+        /* Device Container */
+        .workspace {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            position: relative;
+            overflow: auto;
+        }
+
+        /* iPhone Frame */
+        .device-frame {
+            position: relative;
+            width: var(--iphone-w);
+            height: var(--iphone-h);
+            border-radius: 48px;
+            border: var(--frame-border) solid #1a1a1a;
+            box-shadow: 
+                0 0 0 2px #333,
+                0 20px 40px -10px rgba(0,0,0,0.5),
+                inset 0 0 0 2px #000;
+            background: #000;
+            transition: width 0.4s ease, height 0.4s ease, transform 0.4s ease;
+            transform-origin: center center;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0; /* Prevent shrinking if window is small */
+        }
+
+        /* Landscape Mode */
+        .device-frame.landscape {
+            width: var(--iphone-h);
+            height: var(--iphone-w);
+        }
+
+        /* Dynamic Island */
+        .dynamic-island {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 35px;
+            background: #000;
+            border-radius: 20px;
+            z-index: 20;
+            pointer-events: none;
+            transition: all 0.4s ease;
+        }
+        
+        .device-frame.landscape .dynamic-island {
+            top: 50%;
+            left: 10px;
+            transform: translateY(-50%);
+            width: 35px;
+            height: 120px;
+        }
+
+        .screen {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            background: #fff; /* Default screen color */
+            border-radius: 34px; /* Slightly less than frame */
+            overflow: hidden;
+            position: relative;
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+        
+        /* Subtle reflections */
+        .device-frame::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 34px;
+            box-shadow: inset 0 2px 4px rgba(255,255,255,0.1);
+            pointer-events: none;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h1>Device Viewer</h1>
+        
+        <div class="control-group">
+            <label for="page-select">Quick Select Page</label>
+            <select id="page-select">
+                <option value="ic-portal.html">IC Portal (ic-portal.html)</option>
+                <option value="mentoring.html">Mentoring (mentoring.html)</option>
+                <option value="trainee.html">Trainee (trainee.html)</option>
+                <option value="custom" style="display:none;" id="custom-option">Custom File</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="file-upload">Or Browse Local File</label>
+            <input type="file" id="file-upload" accept=".html,.htm">
+        </div>
+
+        <div class="control-group">
+            <label>Orientation</label>
+            <button id="rotate-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                    <path d="M3 3v5h5"></path>
+                </svg>
+                Rotate Device
+            </button>
+        </div>
+        
+        <div class="control-group">
+            <label>View Scale</label>
+            <div style="display: flex; gap: 8px;">
+                <button id="scale-fit-btn" style="flex: 1; background: var(--primary-hover);">Fit Screen</button>
+                <button id="scale-100-btn" style="flex: 1; background: rgba(0,0,0,0.2);">1:1 Size</button>
+            </div>
+        </div>
+        
+        <div class="control-group" style="margin-top: auto;">
+            <button id="refresh-btn" style="background: rgba(255,255,255,0.1); color: #fff;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 2v6h-6"></path>
+                    <path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path>
+                    <path d="M3 22v-6h6"></path>
+                    <path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path>
+                </svg>
+                Reload Frame
+            </button>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <div class="device-frame" id="device">
+            <div class="dynamic-island"></div>
+            <div class="screen">
+                <iframe id="viewer-frame" src="ic-portal.html" title="Mobile Preview"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const frame = document.getElementById('viewer-frame');
+        const pageSelect = document.getElementById('page-select');
+        const fileUpload = document.getElementById('file-upload');
+        const customOption = document.getElementById('custom-option');
+        const rotateBtn = document.getElementById('rotate-btn');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const scaleFitBtn = document.getElementById('scale-fit-btn');
+        const scale100Btn = document.getElementById('scale-100-btn');
+        const device = document.getElementById('device');
+        const workspace = document.querySelector('.workspace');
+
+        let currentObjectUrl = null;
+        let isScaleToFit = true;
+
+        function updateScale() {
+            if (!isScaleToFit) {
+                device.style.transform = 'scale(1)';
+                workspace.style.overflow = 'auto';
+                return;
+            }
+            
+            workspace.style.overflow = 'hidden';
+            
+            // Calculate available space (40px padding on all sides = 80px total)
+            const availableWidth = workspace.clientWidth - 80;
+            const availableHeight = workspace.clientHeight - 80;
+            
+            // Current device dimensions including borders (14px * 2 = 28px)
+            const isLandscape = device.classList.contains('landscape');
+            const deviceWidth = isLandscape ? 852 + 28 : 393 + 28;
+            const deviceHeight = isLandscape ? 393 + 28 : 852 + 28;
+            
+            const scaleX = availableWidth / deviceWidth;
+            const scaleY = availableHeight / deviceHeight;
+            const scale = Math.min(scaleX, scaleY, 1); // Don't scale up past 1x
+            
+            device.style.transform = `scale(${scale})`;
+        }
+
+        scaleFitBtn.addEventListener('click', () => {
+            isScaleToFit = true;
+            scaleFitBtn.style.background = 'var(--primary-hover)';
+            scale100Btn.style.background = 'rgba(0,0,0,0.2)';
+            updateScale();
+        });
+
+        scale100Btn.addEventListener('click', () => {
+            isScaleToFit = false;
+            scale100Btn.style.background = 'var(--primary-hover)';
+            scaleFitBtn.style.background = 'rgba(0,0,0,0.2)';
+            updateScale();
+        });
+
+        window.addEventListener('resize', updateScale);
+
+        // Handle quick select
+        pageSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val !== 'custom') {
+                frame.src = val;
+            } else if (currentObjectUrl) {
+                frame.src = currentObjectUrl;
+            }
+        });
+
+        // Handle file upload
+        fileUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                // Revoke old URL if it exists to prevent memory leaks
+                if (currentObjectUrl) {
+                    URL.revokeObjectURL(currentObjectUrl);
+                }
+                
+                // Create new object URL for the uploaded file
+                currentObjectUrl = URL.createObjectURL(file);
+                frame.src = currentObjectUrl;
+                
+                // Update select menu to show custom file is active
+                customOption.style.display = 'block';
+                customOption.selected = true;
+                customOption.textContent = `Custom: ${file.name}`;
+            }
+        });
+
+        // Handle rotation
+        rotateBtn.addEventListener('click', () => {
+            device.classList.toggle('landscape');
+            // Give CSS a moment to apply classes before recalculating size
+            setTimeout(updateScale, 50);
+        });
+        
+        // Handle refresh
+        refreshBtn.addEventListener('click', () => {
+            // Force reload iframe
+            const currentSrc = frame.src;
+            frame.src = 'about:blank';
+            setTimeout(() => {
+                frame.src = currentSrc;
+            }, 50);
+        });
+        
+        // Initial call to set scale
+        updateScale();
+    </script>
+</body>
+</html>

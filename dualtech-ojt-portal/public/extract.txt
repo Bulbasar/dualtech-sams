@@ -1,0 +1,271 @@
+function OverviewTab({ showMessage, globalData, setGlobalData }) {
+    const { PieChart, Pie, Cell, Tooltip: RechartsTooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ComposedChart, Line } = Recharts;
+
+    const [attendanceData, setAttendanceData] = React.useState({});
+    const [isFetching, setIsFetching] = React.useState(false);
+    const [lastUpdated, setLastUpdated] = React.useState(null);
+    const [groupBy, setGroupBy] = React.useState('shift'); // 'shift' or 'adviser'
+
+    const activeTrainees = React.useMemo(() => {
+        return (globalData?.trainees || []).filter(t => {
+            if (t.Level !== 'BSTP' || !t.isRegistered) return false;
+            const status = (t.currentbstpStatus || t.Status || t.status || '').toLowerCase();
+            return status !== 'loa';
+        });
+    }, [globalData?.trainees]);
+
+    // Helper to determine week parity
+    const getWeekNumber = (d) => {
+        d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+        return Math.ceil((((d - yearStart) / 86400000) + 1)/7);
+    };
+
+    const fetchAttendance = async () => {
+        setIsFetching(true);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayIsoStart = today.toISOString();
+        
+        try {
+            const appId = 'dualtech-ojt-portal';
+            
+            const q = query(
+                collection(db, 'artifacts', appId, 'public', 'data', 'bstpAttendance'),
+                where('timestamp', '>=', todayIsoStart)
+            );
+            
+            const snap = await getDocs(q);
+            
+            // Map logs by studentNo
+            const logsByStudent = {};
+            snap.forEach(doc => {
+                const d = doc.data();
+                if (!d.studentNo) return;
+                
+                if (!logsByStudent[d.studentNo]) {
+                    logsByStudent[d.studentNo] = { inRecs: [], outRecs: [] };
+                }
+                
+                if (d.type === 'IN') {
+                    logsByStudent[d.studentNo].inRecs.push(d);
+                } else if (d.type === 'OUT') {
+                    logsByStudent[d.studentNo].outRecs.push(d);
+                }
+            });
+            
+            setAttendanceData(logsByStudent);
+            setLastUpdated(new Date());
+            showMessage("Attendance data refreshed successfully!");
+        } catch(e) {
+            console.error(e);
+            showMessage("Error refreshing attendance data", "error");
+        } finally {
+            setIsFetching(false);
+        }
+    };
+
+    // Auto-fetch on mount if not fetched
+    React.useEffect(() => {
+        if (activeTrainees.length > 0 && !lastUpdated && !isFetching) {
+            fetchAttendance();
+        }
+    }, [activeTrainees]);
+
+    // Derived Statistics
+    const stats = React.useMemo(() => {
+        const groups = {
+            'Currently Clocked In': [],
+            'Completed Shift': [],
+            'No Clock Ins': []
+        };
+        
+        activeTrainees.forEach(t => {
+            const studentNo = t.studentNo || t.studentId || t.idNumber || t.id_number || t.id;
+            const stuLogs = attendanceData[studentNo];
+            
+            let groupKey = 'Unknown';
+            if (groupBy === 'shift') groupKey = (t.shift || t.bstpshiftName || 'No Shift');
+            else if (groupBy === 'adviser') groupKey = (t.adviser || 'No Adviser');
+            else if (groupBy === 'section') groupKey = (t.section || t.Section || 'No Section');
+            else if (groupBy === 'status') groupKey = (t.currentbstpStatus || t.Status || t.status || 'No Status');
+            
+            let status = 'No Clock Ins';
+            let isLate = false;
+            let isUndertime = false;
+            let logToDisplay = null;
+
+            if (stuLogs && stuLogs.inRecs.length > 0) {
+                // Sort by latest IN
+                stuLogs.inRecs.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+                const latestIn = stuLogs.inRecs[0];
+                logToDisplay = { timeIn: latestIn.timestamp };
+                
+                let latestOut = null;
+                if (stuLogs.outRecs.length > 0) {
+                    status = 'Completed Shift';
+                    stuLogs.outRecs.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    latestOut = stuLogs.outRecs[0];
+                    logToDisplay.timeOut = latestOut.timestamp;
+                } else {
+                    status = 'Currently Clocked In';
+                }
+                
+                // Calculate if Late based on Shift
+                let targetShiftId = t.bstpshiftId;
+                if (!targetShiftId && t.shift && globalData?.shifts) {
+                    const found = globalData.shifts.find(s => s.name === t.shift);
+                    if (found) targetShiftId = found.id;
+                }
+                if (targetShiftId && globalData?.shifts) {
+                    const shift = globalData.shifts.find(s => s.id === targetShiftId);
+                    if (shift) {
+                        const weekNum = getWeekNumber(new Date(latestIn.timestamp));
+                        const isEvenWeek = weekNum % 2 === 0;
+                        const startTimeStr = isEvenWeek ? shift.evenWeekStartTime : shift.oddWeekStartTime;
+                        const endTimeStr = isEvenWeek ? shift.evenWeekEndTime : shift.oddWeekEndTime;
+                        
+                        if (startTimeStr) {
+                            const [shiftHH, shiftMM] = startTimeStr.split(':').map(Number);
+                            const inDate = new Date(latestIn.timestamp);
+                            const shiftMins = (shiftHH * 60) + shiftMM;
+                            const inMins = (inDate.getHours() * 60) + inDate.getMinutes();
+                            if (inMins > shiftMins) isLate = true;
+                        }
+                        
+                        if (endTimeStr && latestOut) {
+                            const [shiftHH, shiftMM] = endTimeStr.split(':').map(Number);
+                            const outDate = new Date(latestOut.timestamp);
+                            const shiftMins = (shiftHH * 60) + shiftMM;
+                            const outMins = (outDate.getHours() * 60) + outDate.getMinutes();
+                            if (outMins < shiftMins) isUndertime = true;
+                        }
+                    }
+                }
+            }
+
+            const item = { ...t, log: logToDisplay, isLate, isUndertime, groupKey };
+            groups[status].push(item);
+        });
+
+        return groups;
+    }, [activeTrainees, attendanceData, groupBy, globalData?.shifts]);
+
+    // Chart Data Preparation
+    const pieData = [
+        { name: 'Clocked In', value: stats['Currently Clocked In'].length, color: '#3b82f6' },
+        { name: 'Completed', value: stats['Completed Shift'].length, color: '#10b981' },
+        { name: 'No Clock In', value: stats['No Clock Ins'].length, color: '#94a3b8' }
+    ];
+
+    const barDataMap = {};
+    activeTrainees.forEach(t => {
+        let groupKey = 'Unknown';
+            if (groupBy === 'shift') groupKey = (t.shift || t.bstpshiftName || 'No Shift');
+            else if (groupBy === 'adviser') groupKey = (t.adviser || 'No Adviser');
+            else if (groupBy === 'section') groupKey = (t.section || t.Section || 'No Section');
+            else if (groupBy === 'status') groupKey = (t.currentbstpStatus || t.Status || t.status || 'No Status');
+        if (!barDataMap[groupKey]) {
+            barDataMap[groupKey] = { name: groupKey, OnTime: 0, Late: 0, NoClockIn: 0, Total: 0 };
+        }
+        barDataMap[groupKey].Total++;
+    });
+
+    [...stats['Currently Clocked In'], ...stats['Completed Shift']].forEach(item => {
+        if (item.isLate) barDataMap[item.groupKey].Late++;
+        else barDataMap[item.groupKey].OnTime++;
+    });
+    
+    stats['No Clock Ins'].forEach(item => {
+        barDataMap[item.groupKey].NoClockIn++;
+    });
+
+    const barData = Object.values(barDataMap).map(d => {
+        return {
+            ...d,
+            Rate: d.Total > 0 ? parseFloat(((d.OnTime / d.Total) * 100).toFixed(1)) : 0
+        };
+    });
+
+    return (
+        <div className="max-w-7xl mx-auto space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                <div>
+                    <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <Lucide.Users className="text-blue-500" /> BSTP Trainee Attendance Overview
+                    </h2>
+                    <p className="text-sm text-slate-500 mt-1">
+                        Monitoring {activeTrainees.length} active trainees. 
+                        {lastUpdated && <span className="ml-2 inline-flex items-center gap-1"><Lucide.Clock size={12}/> Last updated: {lastUpdated.toLocaleTimeString()}</span>}
+                    </p>
+                </div>
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <select 
+                        value={groupBy} 
+                        onChange={e => setGroupBy(e.target.value)}
+                        className="bg-slate-100 dark:bg-slate-800 text-sm font-bold text-slate-700 dark:text-slate-300 rounded-lg px-3 py-2 border-none focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                        <option value="shift">Group by Shift</option>
+                        <option value="adviser">Group by Adviser</option>
+                        <option value="section">Group by Section</option>
+                        <option value="status">Group by Status</option>
+                    </select>
+                    <button 
+                        onClick={fetchAttendance}
+                        disabled={isFetching}
+                        className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors flex items-center gap-2 whitespace-nowrap shadow-sm"
+                    >
+                        <Lucide.RefreshCw size={16} className={isFetching ? "animate-spin" : ""} /> Refresh
+                    </button>
+                </div>
+            </div>
+
+            {Recharts && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col items-center">
+                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Overall Status</h3>
+                        <div className="w-full h-64">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                                        {pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                                    </Pie>
+                                    <RechartsTooltip />
+                                    <Legend />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Punctuality by {groupBy.charAt(0).toUpperCase() + groupBy.slice(1)}</h3>
+                        <div className="w-full h-64">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <ComposedChart data={barData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                                    <XAxis dataKey="name" tick={{fontSize: 12}} />
+                                    <YAxis yAxisId="left" tick={{fontSize: 12}} allowDecimals={false} />
+                                    <YAxis yAxisId="right" orientation="right" tick={{fontSize: 12}} domain={[0, 100]} />
+                                    <RechartsTooltip cursor={{fill: 'transparent'}} />
+                                    <Legend />
+                                    <Bar yAxisId="left" dataKey="OnTime" name="On Time" stackId="a" fill="#10b981" radius={[0, 0, 4, 4]} />
+                                    <Bar yAxisId="left" dataKey="Late" name="Late" stackId="a" fill="#ef4444" radius={[0, 0, 0, 0]} />
+                                    <Bar yAxisId="left" dataKey="NoClockIn" name="No Clock In" stackId="a" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                                    <Line yAxisId="right" type="monotone" dataKey="Rate" name="Punctuality Rate %" stroke="#3b82f6" strokeWidth={3} />
+                                </ComposedChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <StatusColumn title="Currently Clocked In" color="blue" items={stats['Currently Clocked In']} groupBy={groupBy} />
+                <StatusColumn title="Completed Shift" color="emerald" items={stats['Completed Shift']} groupBy={groupBy} />
+                <StatusColumn title="No Clock Ins" color="slate" items={stats['No Clock Ins']} groupBy={groupBy} />
+            </div>
+        </div>
+    );
+}
+
